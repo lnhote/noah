@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/v2pro/wallaby/server"
+
+	"github.com/lnhote/noaḥ/server"
 )
 
 func main() {
-	fmt.Println("hello")
-	server.Start()
+	fmt.Println("Start server")
+	server.StartLeaderHandler()
+	server.StartFollowerHandler()
 }
