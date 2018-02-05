@@ -25,7 +25,7 @@ echo -n "test out the server" | nc localhost 8848
 noah-server {start|stop|restart|status}
 ```
 
-> -d: daemon mode
-> -h: help info
-> -v: show version info
-> -c: path to configaration file, e.g., /etc/noah/server.conf
+> -d: daemon mode  
+> -h: help info  
+> -v: show version info  
+> -c: path to configaration file, e.g., /etc/noah/server.conf  
