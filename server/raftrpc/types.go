@@ -1,4 +1,4 @@
-package rpc
+package raftrpc
 
 type AppendRPCRequest struct {
 	Ip        string
@@ -18,7 +18,14 @@ type AppendRPCResponse struct {
 }
 
 type RequestVoteRequest struct {
+	LastLogTerm  int
+	LastLogIndex int
+	NextTerm     int
+
+	// ip address
+	CandidateAddress string
 }
 
 type RequestVoteResponse struct {
+	Accept bool
 }

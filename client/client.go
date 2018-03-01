@@ -3,46 +3,74 @@ package main
 import (
 	"flag"
 	"fmt"
-	"net"
+	"net/rpc"
 	"os"
 	"strings"
+
+	"github.com/lnhote/noaḥ/config"
+	"github.com/lnhote/noaḥ/server/core"
 )
 
 func main() {
-	serverAddr := flag.String("s", "localhost:8848", "server address")
+	serverAddr := flag.String("s", config.ClientPort, "server address")
 	flag.Parse()
 	// connect to server
 	args := os.Args[1:]
-	commandToSend := strings.Join(args, " ")
-	fmt.Println("send message to server: ", commandToSend)
-	net.Dial("tcp", *serverAddr)
-	tcpAddr, err := net.ResolveTCPAddr("tcp", *serverAddr)
-	if err != nil {
-		println("ResolveTCPAddr failed:", err.Error())
-		os.Exit(1)
-	}
+	fmt.Printf("send message to server %s: %s\n", *serverAddr, strings.Join(args, " "))
 
-	conn, err := net.DialTCP("tcp", nil, tcpAddr)
+	//client, err := rpc.DialHTTP("tcp", *serverAddr)
+	//if err != nil {
+	//	println("Dial failed:", err.Error())
+	//	os.Exit(1)
+	//}
+
+	var client, err = rpc.Dial("tcp", *serverAddr)
 	if err != nil {
 		println("Dial failed:", err.Error())
-		os.Exit(1)
 	}
 
-	_, err = conn.Write([]byte(commandToSend))
+	var resp core.ClientResponse
+	cmd, err := parseCommand(args)
 	if err != nil {
-		println("Write to server failed:", err.Error())
+		fmt.Printf("Unkown Command: %s\n", args[0])
 		os.Exit(1)
 	}
-
-	println("write to server = ", commandToSend)
-
-	reply := make([]byte, 1024)
-	_, err = conn.Read(reply)
+	var method string
+	switch cmd.CommandType {
+	case core.CmdGet:
+		method = "NoahCommandServer.Get"
+	case core.CmdSet:
+		method = "NoahCommandServer.Set"
+	default:
+		fmt.Printf("Unkown Command: %s\n", args[0])
+		os.Exit(1)
+	}
+	err = client.Call(method, cmd, &resp)
 	if err != nil {
-		println("Write to server failed:", err.Error())
+		fmt.Printf("%s Fail: %s", method, err.Error())
 		os.Exit(1)
 	}
+	fmt.Printf("%s Success: %+v\n", method, resp)
+	os.Exit(0)
+}
 
-	println("reply from server=", string(reply))
-	conn.Close()
+func parseCommand(commandParts []string) (*core.Command, error) {
+	if len(commandParts) == 0 {
+		return nil, fmt.Errorf("EmptyCommand")
+	}
+	rawCommandStr := strings.Join(commandParts, " ")
+	cmd := strings.ToLower(commandParts[0])
+	if cmd == "get" {
+		if len(commandParts) != 2 {
+			return nil, fmt.Errorf("WrongCommand||%s", rawCommandStr)
+		}
+		return &core.Command{CommandType: core.CmdGet, Key: commandParts[1]}, nil
+	}
+	if cmd == "set" {
+		if len(commandParts) != 3 {
+			return nil, fmt.Errorf("WrongCommand||%s", rawCommandStr)
+		}
+		return &core.Command{CommandType: core.CmdSet, Key: commandParts[1], Value: commandParts[2]}, nil
+	}
+	return nil, fmt.Errorf("CommandNotSupported||%s", rawCommandStr)
 }

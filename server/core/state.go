@@ -1,10 +1,10 @@
 package core
 
-import "github.com/lnhote/noaḥ/server/command"
+import "time"
 
 const (
 	RoleFollower  = 0
-	RolwCandidate = 1
+	RoleCandidate = 1
 	RoleLeader    = 2
 )
 
@@ -26,6 +26,8 @@ type FollowerState struct {
 
 	// MatchedIndex is the last matched index for the follower
 	MatchedIndex int
+
+	LastRpcTime time.Time
 }
 
 type ServerState struct {
@@ -47,14 +49,15 @@ type ServerState struct {
 }
 
 // LogsToCommit: logindex = command struct
-var LogsToCommit = map[int]*command.Command{}
+var LogsToCommit = map[int]*Command{}
+var LogsToTerm = map[int]int{}
 
-func (s *ServerState) collect(ip string, index int) {
+func (s *ServerState) Collect(ip string, index int) {
 	// TODO concurrent, use channel
 	s.Followers[ip].LastIndex = index
 }
 
-func (s *ServerState) isAcceptedByMajority(index int) bool {
+func (s *ServerState) IsAcceptedByMajority(index int) bool {
 	// TODO concurrent, use channel
 	counts := 1
 	total := len(s.Followers) + 1
