@@ -2,21 +2,16 @@ package server
 
 import (
 	"errors"
-	"fmt"
+	"net"
+	"net/rpc"
+
 	"github.com/lnhote/noaḥ/config"
 	"github.com/lnhote/noaḥ/server/core"
 	"github.com/lnhote/noaḥ/server/core/errorcode"
-	"github.com/lnhote/noaḥ/server/raftrpc"
 	"github.com/v2pro/plz/countlog"
-	"net"
-	"net/rpc"
 )
 
 type NoahCommandServer struct {
-}
-
-func init() {
-	core.CurrentServerState.Role = core.RoleLeader
 }
 
 func (ncs *NoahCommandServer) Get(cmd *core.Command, resp *core.ClientResponse) error {
@@ -27,14 +22,13 @@ func (ncs *NoahCommandServer) Get(cmd *core.Command, resp *core.ClientResponse) 
 	}
 	if core.CurrentServerState.Role != core.RoleLeader {
 		data := map[string]interface{}{
-			"leader_address": config.GetLeaderIp(),
+			"leader_address": config.GetLeaderAddr(),
 		}
 		resp.Code = errorcode.NotLeader
 		resp.Data = data
 		return nil
 	}
-	raftImpl := &raftrpc.SimpleRaft{}
-	val, err := HandleCommand(cmd, raftImpl)
+	val, err := AppendLog(cmd)
 	if err != nil {
 		return err
 	}
@@ -55,14 +49,13 @@ func (ncs *NoahCommandServer) Set(cmd *core.Command, resp *core.ClientResponse) 
 	}
 	if core.CurrentServerState.Role != core.RoleLeader {
 		data := map[string]interface{}{
-			"leader_address": config.GetLeaderIp(),
+			"leader_address": config.GetLeaderAddr(),
 		}
 		resp.Code = errorcode.NotLeader
 		resp.Data = data
 		return nil
 	}
-	raftImpl := &raftrpc.SimpleRaft{}
-	val, err := HandleCommand(cmd, raftImpl)
+	val, err := AppendLog(cmd)
 	if err != nil {
 		return err
 	}
@@ -77,27 +70,22 @@ func (ncs *NoahCommandServer) Set(cmd *core.Command, resp *core.ClientResponse) 
 func StartNoahCommandServer() {
 	addr := config.ClientPort
 	noahCmdServer := new(NoahCommandServer)
-
 	rpc.Register(noahCmdServer)
 
 	//rpc.HandleHTTP()
 	//err := http.ListenAndServe(addr, nil)
-	//if err != nil {
-	//	return
-	//}
 
 	var address, _ = net.ResolveTCPAddr("tcp", addr)
 	listener, err := net.ListenTCP("tcp", address)
 	if err != nil {
-		fmt.Println("fail to start NoahCommandServer", err)
+		panic("Fail to start NoahCommandServer: " + err.Error())
 	}
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			countlog.Error("event!client handler failed to listen to port", "err", err, "addr", addr)
+			countlog.Error("StartNoahCommandServer failed to listen to port", "error", err, "addr", addr)
 			continue
 		}
-		fmt.Println("get a request")
 		rpc.ServeConn(conn)
 	}
 }

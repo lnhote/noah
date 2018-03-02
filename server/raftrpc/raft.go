@@ -1,32 +1,29 @@
 package raftrpc
 
 import (
-	"fmt"
 	"net/rpc"
 
 	"github.com/lnhote/noaḥ/server/core"
+	"github.com/v2pro/plz/countlog"
 )
 
-type SimpleRaft struct {
-}
-
 // ExecuteCommand save the command to sate machine
-func (s SimpleRaft) ExecuteCommand(cmd *core.Command) ([]byte, error) {
+func ExecuteCommand(cmd *core.Command) ([]byte, error) {
 	return []byte("OK"), nil
 }
 
 // SendAppendEntryRPC is for leader only:
 // 1. append log.
 // 2. send heart beat.
-func (s SimpleRaft) SendAppendEntryRPC(serverAddr string, req *AppendRPCRequest) (*AppendRPCResponse, error) {
+func SendAppendEntryRPC(serverAddr string, req *AppendRPCRequest) (*AppendRPCResponse, error) {
 	var client, err = rpc.Dial("tcp", serverAddr)
 	if err != nil {
-		println("Dial failed:", err.Error())
+		countlog.Error("SendAppendEntryRPC Connect Error", "error", err.Error(), "serverAddr", serverAddr)
+		return nil, err
 	}
 	var resp AppendRPCResponse
-	err = client.Call("NoahClusterServer.OnReceiveAppendRPC", req, &resp)
-	if err != nil {
-		fmt.Printf("%s Fail: %s", "NoahClusterServer.OnReceiveAppendRPC", err.Error())
+	if err = client.Call("NoahClusterServer.OnReceiveAppendRPC", req, &resp); err != nil {
+		countlog.Error("NoahClusterServer.OnReceiveAppendRPC Fail", "error", err.Error())
 		return nil, err
 	}
 	return &resp, nil
@@ -34,15 +31,15 @@ func (s SimpleRaft) SendAppendEntryRPC(serverAddr string, req *AppendRPCRequest)
 
 // SendRequestVoteRPC is for candidate only:
 // 1. ask for vote for next leader election term
-func (s SimpleRaft) SendRequestVoteRPC(serverAddr string, req *RequestVoteRequest) (*RequestVoteResponse, error) {
+func SendRequestVoteRPC(serverAddr string, req *RequestVoteRequest) (*RequestVoteResponse, error) {
 	var client, err = rpc.Dial("tcp", serverAddr)
 	if err != nil {
-		println("Dial failed:", err.Error())
+		countlog.Error("SendRequestVoteRPC Connect Error", "error", err.Error(), "serverAddr", serverAddr)
 	}
 	var resp RequestVoteResponse
 	err = client.Call("NoahClusterServer.OnReceiveRequestVoteRPC", req, &resp)
 	if err != nil {
-		fmt.Printf("%s Fail: %s", "NoahClusterServer.OnReceiveRequestVoteRPC", err.Error())
+		countlog.Error("NoahClusterServer.OnReceiveRequestVoteRPC Fail", "error", err.Error())
 		return nil, err
 	}
 	return &resp, nil

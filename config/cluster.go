@@ -6,14 +6,14 @@ const (
 	ClusterPort = "127.0.0.1:8849"
 )
 
-func GetAddrList() []string {
+func GetServerList() []string {
 	return []string{"127.0.0.1:8849", "127.0.0.1:8849"}
 }
 
-func GetLeaderIp() string {
-	return "127.0.0.1"
+func GetLeaderAddr() string {
+	return "127.0.0.1:8849"
 }
 
-func GetThisIp() string {
-	return "127.0.0.1"
+func GetLocalAddr() string {
+	return "127.0.0.1:8849"
 }

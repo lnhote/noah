@@ -1,6 +1,9 @@
 package core
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 const (
 	RoleFollower  = 0
@@ -9,7 +12,7 @@ const (
 )
 
 type FollowerState struct {
-	// Ip is follower's ip
+	// Addr is follower's ip
 	Ip string
 
 	// LastIndex is the last received log index for the server
@@ -52,27 +55,33 @@ type ServerState struct {
 var LogsToCommit = map[int]*Command{}
 var LogsToTerm = map[int]int{}
 
-func (s *ServerState) Collect(ip string, index int) {
-	// TODO concurrent, use channel
-	s.Followers[ip].LastIndex = index
-}
-
-func (s *ServerState) IsAcceptedByMajority(index int) bool {
-	// TODO concurrent, use channel
-	counts := 1
-	total := len(s.Followers) + 1
-	for _, follower := range s.Followers {
-		if follower.LastIndex >= index {
-			counts = counts + 1
-		}
-	}
-	return counts*2 > total
-}
-
 var CurrentServerState = NewServerState()
 
 func NewServerState() *ServerState {
 	state := &ServerState{}
 	state.Followers = map[string]*FollowerState{}
 	return state
+}
+
+func GetLogTerm(index int) (int, error) {
+	if term, ok := LogsToTerm[index]; ok {
+		return term, nil
+	} else {
+		return 0, fmt.Errorf("InvalidLogIndex=%d", index)
+	}
+}
+
+func GetLastIndex() int {
+	return CurrentServerState.NextIndex - 1
+}
+
+func IsAcceptedByMajority(index int) bool {
+	counts := 1
+	total := len(CurrentServerState.Followers) + 1
+	for _, follower := range CurrentServerState.Followers {
+		if follower.LastIndex >= index {
+			counts = counts + 1
+		}
+	}
+	return counts*2 > total
 }

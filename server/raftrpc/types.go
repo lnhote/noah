@@ -1,28 +1,32 @@
 package raftrpc
 
+import (
+	"time"
+
+	"github.com/lnhote/noaḥ/server/core"
+)
+
 type AppendRPCRequest struct {
-	Ip        string
-	Log       string
-	NextIndex int
-	Term      int
+	Addr         string
+	LogEntries   []*core.Command
+	NextIndex    int
+	Term         int
+	PrevLogTerm  int
+	PrevLogIndex int
 }
 
 type AppendRPCResponse struct {
-	Ip string
-
-	LastLogIndex int
-
-	LastLogTerm int
-
-	Error string
+	Addr            string
+	LastLogIndex    int
+	LastLogTerm     int
+	Time            time.Time
+	UnmatchLogIndex int
 }
 
 type RequestVoteRequest struct {
-	LastLogTerm  int
-	LastLogIndex int
-	NextTerm     int
-
-	// ip address
+	LastLogTerm      int
+	LastLogIndex     int
+	NextTerm         int
 	CandidateAddress string
 }
 

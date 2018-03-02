@@ -1,42 +1,20 @@
 package server
 
 import (
-	"fmt"
 	"github.com/lnhote/noaḥ/config"
 	"github.com/lnhote/noaḥ/server/core"
 	"github.com/lnhote/noaḥ/server/raftrpc"
+	"github.com/lnhote/noaḥ/server/store"
 	"github.com/v2pro/plz/countlog"
 	"net"
 	"net/rpc"
 	"time"
 )
 
-var (
-	leaderElectionTimer   = time.NewTimer(time.Duration(20) * time.Millisecond)
-	leaderHeartBeatTicker = time.NewTicker(500 * time.Millisecond)
-)
-
-// leader will send heart beat to followers periodically
-func StartHeartbeatTimer() {
-	for {
-		<-leaderHeartBeatTicker.C
-		if core.CurrentServerState.Role == core.RoleLeader {
-			SendHearbeat()
-		}
-	}
-}
-
-// follower will start leader election on time out
-func StartLeaderElectionTimer() {
-	for {
-		<-leaderElectionTimer.C
-		leaderElectionTimer.Reset(time.Duration(20) * time.Millisecond)
-		if core.CurrentServerState.Role == core.RoleFollower {
-			countlog.Info("event!can't hear from leader, convert to candidate")
-			core.CurrentServerState.Role = core.RoleCandidate
-			// 20 - 100ms
-			SendRequestVoteToAll()
-		}
+func init() {
+	core.CurrentServerState.Role = core.RoleLeader
+	for _, addr := range config.GetServerList() {
+		core.CurrentServerState.Followers[addr] = &core.FollowerState{}
 	}
 }
 
@@ -44,14 +22,64 @@ type NoahClusterServer struct {
 }
 
 func (ncs *NoahClusterServer) OnReceiveAppendRPC(req *raftrpc.AppendRPCRequest, resp *raftrpc.AppendRPCResponse) error {
-
-	// TODO check log before accept new logs from leader
+	// 1. During leader election, if the dead leader revived, candidate has to become follower
+	// 2. After leader election, When the dead leader comes to live after a new leader is elected,
+	// leader has to become follower
+	core.CurrentServerState.Role = core.RoleFollower
+	// leader is alive, so reset the timer
+	ResetLeaderElectionTimer()
+	resp.Addr = config.GetLocalAddr()
+	resp.Time = time.Now()
+	// check log before accept new logs from leader
+	term, err := core.GetLogTerm(req.PrevLogIndex)
+	if err != nil {
+		countlog.Info("Leader.PrevLogIndex does not exist here", "index", req.PrevLogIndex)
+		resp.UnmatchLogIndex = req.PrevLogIndex
+		return nil
+	}
+	if term != req.PrevLogTerm {
+		resp.UnmatchLogIndex = req.PrevLogIndex
+		return nil
+	}
+	startLogIndex := req.PrevLogIndex + 1
+	for _, log := range req.LogEntries {
+		store.SaveLogEntryAtIndex(log, startLogIndex)
+		startLogIndex++
+	}
 	return nil
 }
 
+// OnReceiveRequestVoteRPC will make the election decision: accept or reject
 func (ncs *NoahClusterServer) OnReceiveRequestVoteRPC(req *raftrpc.RequestVoteRequest, resp *raftrpc.RequestVoteResponse) error {
-
-	// TODO accept or reject
+	if core.CurrentServerState.LastVotedTerm > req.NextTerm {
+		resp.Accept = false
+		return nil
+	}
+	if core.CurrentServerState.LastVotedTerm == req.NextTerm {
+		if core.CurrentServerState.LastVotedServerIp == req.CandidateAddress {
+			resp.Accept = true
+		} else {
+			resp.Accept = false
+		}
+		return nil
+	}
+	lastTerm, err := core.GetLogTerm(core.GetLastIndex())
+	if err != nil {
+		return err
+	}
+	if req.LastLogTerm > lastTerm {
+		resp.Accept = true
+	} else if req.LastLogTerm < lastTerm {
+		resp.Accept = false
+	} else if req.LastLogIndex >= core.GetLastIndex() {
+		resp.Accept = true
+	} else {
+		resp.Accept = false
+	}
+	if resp.Accept {
+		core.CurrentServerState.LastVotedTerm = req.NextTerm
+		core.CurrentServerState.LastVotedServerIp = req.CandidateAddress
+	}
 	return nil
 }
 
@@ -62,14 +90,11 @@ func StartNoahClusterServer() {
 
 	//rpc.HandleHTTP()
 	//err := http.ListenAndServe(addr, nil)
-	//if err != nil {
-	//	return
-	//}
 
 	var address, _ = net.ResolveTCPAddr("tcp", addr)
 	listener, err := net.ListenTCP("tcp", address)
 	if err != nil {
-		fmt.Println("fail to start NoahClusterServer", err)
+		panic("Fail to start NoahClusterServer: " + err.Error())
 	}
 	for {
 		conn, err := listener.Accept()
@@ -77,7 +102,6 @@ func StartNoahClusterServer() {
 			countlog.Error("event!client handler failed to listen to port", "err", err, "addr", addr)
 			continue
 		}
-		fmt.Println("get a request")
 		rpc.ServeConn(conn)
 	}
 }
