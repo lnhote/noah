@@ -52,7 +52,7 @@ type ServerState struct {
 }
 
 // LogsToCommit: logindex = command struct
-var LogsToCommit = map[int]*Command{}
+var LogsToCommit = map[int]*LogEntry{}
 var LogsToTerm = map[int]int{}
 
 var CurrentServerState = NewServerState()

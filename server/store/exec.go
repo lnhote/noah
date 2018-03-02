@@ -20,15 +20,15 @@ func UpdateCommitIndex(index int) ([]byte, error) {
 
 // SaveLogEntry add the command to uncommited log list
 // return the log index for this entry
-func SaveLogEntry(cmd *core.Command) int {
+func SaveLogEntry(log *core.LogEntry) int {
 	logIndex := core.CurrentServerState.NextIndex
-	core.LogsToCommit[logIndex] = cmd
+	core.LogsToCommit[logIndex] = log
 	core.CurrentServerState.NextIndex = logIndex + 1
 	return logIndex
 }
 
-func SaveLogEntryAtIndex(cmd *core.Command, logIndex int) int {
-	core.LogsToCommit[logIndex] = cmd
+func SaveLogEntryAtIndex(log *core.LogEntry, logIndex int) int {
+	core.LogsToCommit[logIndex] = log
 	core.CurrentServerState.NextIndex = logIndex + 1
 	return logIndex
 }

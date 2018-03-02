@@ -17,7 +17,8 @@ var (
 
 // AppendLog is the main flow
 func AppendLog(cmd *core.Command) ([]byte, error) {
-	logIndex := store.SaveLogEntry(cmd)
+	newLog := &core.LogEntry{cmd, core.CurrentServerState.NextIndex, core.CurrentServerState.Term}
+	logIndex := store.SaveLogEntry(newLog)
 	wgHandleCommand.Add(len(core.CurrentServerState.Followers))
 	for addr, _ := range core.CurrentServerState.Followers {
 		req := &raftrpc.AppendRPCRequest{}
@@ -26,7 +27,8 @@ func AppendLog(cmd *core.Command) ([]byte, error) {
 		req.PrevLogIndex = core.CurrentServerState.NextIndex - 1
 		req.PrevLogTerm, _ = core.GetLogTerm(req.PrevLogIndex)
 		req.NextIndex = core.CurrentServerState.NextIndex
-		req.LogEntries = append(req.LogEntries, cmd)
+		req.CommitIndex = core.CurrentServerState.CommitIndex
+		req.LogEntries = append(req.LogEntries, newLog)
 		go replicateLogToServer(req)
 	}
 	wgHandleCommand.Wait()
@@ -58,11 +60,11 @@ func replicateLogToServer(req *raftrpc.AppendRPCRequest) error {
 	for resp.UnmatchLogIndex <= req.PrevLogIndex {
 		req.PrevLogIndex = resp.UnmatchLogIndex - 1
 		req.PrevLogTerm, _ = core.GetLogTerm(req.PrevLogIndex)
-		cmds := []*core.Command{}
+		logs := []*core.LogEntry{}
 		for i := req.PrevLogIndex + 1; i < req.NextIndex; i++ {
-			cmds = append(cmds, core.LogsToCommit[i])
+			logs = append(logs, core.LogsToCommit[i])
 		}
-		req.LogEntries = cmds
+		req.LogEntries = logs
 		if resp, err = raftrpc.SendAppendEntryRPC(req.Addr, req); err != nil {
 			countlog.Error("SendAppendEntryRPC Fail", "addr", req.Addr, "error", err)
 			return err
@@ -70,5 +72,6 @@ func replicateLogToServer(req *raftrpc.AppendRPCRequest) error {
 	}
 	core.CurrentServerState.Followers[resp.Addr].LastIndex = resp.LastLogIndex
 	core.CurrentServerState.Followers[resp.Addr].LastRpcTime = resp.Time
+	core.CurrentServerState.Followers[resp.Addr].MatchedIndex = resp.LastLogIndex
 	return nil
 }

@@ -8,11 +8,12 @@ import (
 
 type AppendRPCRequest struct {
 	Addr         string
-	LogEntries   []*core.Command
+	LogEntries   []*core.LogEntry
 	NextIndex    int
 	Term         int
 	PrevLogTerm  int
 	PrevLogIndex int
+	CommitIndex  int
 }
 
 type AppendRPCResponse struct {

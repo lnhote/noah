@@ -6,6 +6,7 @@ import (
 	"github.com/lnhote/noaḥ/server/raftrpc"
 	"github.com/lnhote/noaḥ/server/store"
 	"github.com/v2pro/plz/countlog"
+	"math"
 	"net"
 	"net/rpc"
 	"time"
@@ -28,6 +29,9 @@ func (ncs *NoahClusterServer) OnReceiveAppendRPC(req *raftrpc.AppendRPCRequest, 
 	core.CurrentServerState.Role = core.RoleFollower
 	// leader is alive, so reset the timer
 	ResetLeaderElectionTimer()
+
+	core.CurrentServerState.Term = req.Term
+	core.CurrentServerState.CommitIndex = req.CommitIndex
 	resp.Addr = config.GetLocalAddr()
 	resp.Time = time.Now()
 	// check log before accept new logs from leader
@@ -46,6 +50,8 @@ func (ncs *NoahClusterServer) OnReceiveAppendRPC(req *raftrpc.AppendRPCRequest, 
 		store.SaveLogEntryAtIndex(log, startLogIndex)
 		startLogIndex++
 	}
+	resp.UnmatchLogIndex = math.MaxInt32
+	resp.LastLogIndex = startLogIndex - 1
 	return nil
 }
 

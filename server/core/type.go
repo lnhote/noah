@@ -24,6 +24,12 @@ func (c Command) ToLog() (string, error) {
 	}
 }
 
+type LogEntry struct {
+	Command *Command
+	Index   int
+	Term    int
+}
+
 type ClientResponse struct {
 	Code int
 	Data map[string]interface{}
