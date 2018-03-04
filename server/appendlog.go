@@ -33,8 +33,14 @@ func AppendLog(cmd *core.Command) ([]byte, error) {
 	}
 	wgHandleCommand.Wait()
 	if core.IsAcceptedByMajority(logIndex) {
-		core.CurrentServerState.CommitIndex = logIndex
-		return store.ExeStateMachineCmd(cmd)
+		newCommitIndex := logIndex
+		lastCommitIndex := core.CurrentServerState.CommitIndex
+		val, err := store.ExecuteLogAndUpdateStateMachine(lastCommitIndex+1, newCommitIndex)
+		if err != nil {
+			return nil, err
+		}
+		core.CurrentServerState.CommitIndex = newCommitIndex
+		return val, nil
 	} else {
 		return nil, fmt.Errorf("ValueNotAccepcted")
 	}
@@ -62,7 +68,8 @@ func replicateLogToServer(req *raftrpc.AppendRPCRequest) error {
 		req.PrevLogTerm, _ = core.GetLogTerm(req.PrevLogIndex)
 		logs := []*core.LogEntry{}
 		for i := req.PrevLogIndex + 1; i < req.NextIndex; i++ {
-			logs = append(logs, core.LogsToCommit[i])
+			log, _ := core.GetLogEntry(i)
+			logs = append(logs, log)
 		}
 		req.LogEntries = logs
 		if resp, err = raftrpc.SendAppendEntryRPC(req.Addr, req); err != nil {

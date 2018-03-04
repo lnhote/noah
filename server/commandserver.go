@@ -2,12 +2,14 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"net/rpc"
 
 	"github.com/lnhote/noaḥ/config"
 	"github.com/lnhote/noaḥ/server/core"
 	"github.com/lnhote/noaḥ/server/core/errorcode"
+	"github.com/lnhote/noaḥ/server/store"
 	"github.com/v2pro/plz/countlog"
 )
 
@@ -28,15 +30,20 @@ func (ncs *NoahCommandServer) Get(cmd *core.Command, resp *core.ClientResponse) 
 		resp.Data = data
 		return nil
 	}
-	val, err := AppendLog(cmd)
-	if err != nil {
-		return err
+	switch cmd.CommandType {
+	case core.CmdGet:
+		val, err := store.DBGet(cmd.Key)
+		if err != nil {
+			return err
+		}
+		data := map[string]interface{}{
+			"value": val,
+		}
+		resp.Code = errorcode.Success
+		resp.Data = data
+	default:
+		return fmt.Errorf("UnkownCommandType(%d)", cmd.CommandType)
 	}
-	data := map[string]interface{}{
-		"value": val,
-	}
-	resp.Code = errorcode.Success
-	resp.Data = data
 	return nil
 }
 

@@ -52,8 +52,7 @@ type ServerState struct {
 }
 
 // LogsToCommit: logindex = command struct
-var LogsToCommit = map[int]*LogEntry{}
-var LogsToTerm = map[int]int{}
+var logsToCommit = map[int]*LogEntry{}
 
 var CurrentServerState = NewServerState()
 
@@ -64,11 +63,23 @@ func NewServerState() *ServerState {
 }
 
 func GetLogTerm(index int) (int, error) {
-	if term, ok := LogsToTerm[index]; ok {
-		return term, nil
-	} else {
-		return 0, fmt.Errorf("InvalidLogIndex=%d", index)
+	entry, err := GetLogEntry(index)
+	if err != nil {
+		return 0, err
 	}
+	return entry.Term, nil
+}
+
+func GetLogEntry(index int) (*LogEntry, error) {
+	if entry, ok := logsToCommit[index]; ok {
+		return entry, nil
+	} else {
+		return nil, fmt.Errorf("InvalidLogIndex(%d)", index)
+	}
+}
+
+func SaveLogEntry(log *LogEntry) {
+	logsToCommit[log.Index] = log
 }
 
 func GetLastIndex() int {

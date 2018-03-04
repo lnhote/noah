@@ -10,7 +10,7 @@ const (
 type Command struct {
 	CommandType int
 	Key         string
-	Value       string
+	Value       []byte
 }
 
 func (c Command) ToLog() (string, error) {
