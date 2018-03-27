@@ -3,11 +3,12 @@ package raftrpc
 import (
 	"time"
 
-	"github.com/lnhote/noaḥ/server/core"
+	"github.com/lnhote/noaḥ/core"
 )
 
 type AppendRPCRequest struct {
-	Addr         string
+	Node *core.ServerInfo
+
 	LogEntries   []*core.LogEntry
 	NextIndex    int
 	Term         int
@@ -17,7 +18,7 @@ type AppendRPCRequest struct {
 }
 
 type AppendRPCResponse struct {
-	Addr            string
+	Node            *core.ServerInfo
 	LastLogIndex    int
 	LastLogTerm     int
 	Time            time.Time
@@ -25,10 +26,10 @@ type AppendRPCResponse struct {
 }
 
 type RequestVoteRequest struct {
-	LastLogTerm      int
-	LastLogIndex     int
-	NextTerm         int
-	CandidateAddress string
+	LastLogTerm  int
+	LastLogIndex int
+	NextTerm     int
+	Candidate    *core.ServerInfo
 }
 
 type RequestVoteResponse struct {

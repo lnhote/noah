@@ -13,7 +13,7 @@ const (
 
 type FollowerState struct {
 	// Addr is follower's ip
-	Ip string
+	Node *ServerInfo
 
 	// LastIndex is the last received log index for the server
 	LastIndex int
@@ -41,58 +41,64 @@ type ServerState struct {
 	Role        int
 
 	// for follower
-	LeaderIp string
+	LeaderId int
 
 	// for leader election
 	LastVotedTerm     int
-	LastVotedServerIp string
+	LastVotedServerId int
 
 	// for leader
-	Followers map[string]*FollowerState
+	Followers map[int]*FollowerState
 }
-
-// LogsToCommit: logindex = command struct
-var logsToCommit = map[int]*LogEntry{}
-
-var CurrentServerState = NewServerState()
 
 func NewServerState() *ServerState {
 	state := &ServerState{}
-	state.Followers = map[string]*FollowerState{}
+	state.Followers = map[int]*FollowerState{}
 	return state
 }
 
-func GetLogTerm(index int) (int, error) {
-	entry, err := GetLogEntry(index)
+func (ss *ServerState) GetLastIndex() int {
+	return ss.NextIndex - 1
+}
+
+func (ss *ServerState) IsAcceptedByMajority(index int) bool {
+	counts := 1
+	total := len(ss.Followers) + 1
+	for _, follower := range ss.Followers {
+		if follower.LastIndex >= index {
+			counts = counts + 1
+		}
+	}
+	return counts*2 > total
+}
+
+type LogList struct {
+	logs map[int]*LogEntry
+}
+
+func NewLogList() *LogList {
+	logList := &LogList{logs: map[int]*LogEntry{}}
+	return logList
+}
+
+// LogsToCommit: logindex = command struct
+
+func (ll *LogList) GetLogTerm(index int) (int, error) {
+	entry, err := ll.GetLogEntry(index)
 	if err != nil {
 		return 0, err
 	}
 	return entry.Term, nil
 }
 
-func GetLogEntry(index int) (*LogEntry, error) {
-	if entry, ok := logsToCommit[index]; ok {
+func (ll *LogList) GetLogEntry(index int) (*LogEntry, error) {
+	if entry, ok := ll.logs[index]; ok {
 		return entry, nil
 	} else {
 		return nil, fmt.Errorf("InvalidLogIndex(%d)", index)
 	}
 }
 
-func SaveLogEntry(log *LogEntry) {
-	logsToCommit[log.Index] = log
-}
-
-func GetLastIndex() int {
-	return CurrentServerState.NextIndex - 1
-}
-
-func IsAcceptedByMajority(index int) bool {
-	counts := 1
-	total := len(CurrentServerState.Followers) + 1
-	for _, follower := range CurrentServerState.Followers {
-		if follower.LastIndex >= index {
-			counts = counts + 1
-		}
-	}
-	return counts*2 > total
+func (ll *LogList) SaveLogEntry(log *LogEntry) {
+	ll.logs[log.Index] = log
 }

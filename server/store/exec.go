@@ -3,36 +3,36 @@ package store
 import (
 	"fmt"
 
-	"github.com/lnhote/noaḥ/server/core"
+	"github.com/lnhote/noaḥ/core"
 )
 
 // SaveLogEntry add the command to uncommited log list
 // return the log index for this entry
 func SaveLogEntry(log *core.LogEntry) int {
-	log.Index = core.CurrentServerState.NextIndex
+	//log.Index = core.Http.NextIndex
 	return SaveLogEntryAtIndex(log, log.Index)
 }
 
 func SaveLogEntryAtIndex(log *core.LogEntry, logIndex int) int {
 	log.Index = logIndex
-	core.SaveLogEntry(log)
-	core.CurrentServerState.NextIndex = logIndex + 1
+	//core.SaveLogEntry(log)
+	//core.CurrentServerState.NextIndex = logIndex + 1
 	return logIndex
 }
 
 // ExecuteLogAndUpdateStateMachine update the state machine, e.g., rocksdb
 func ExecuteLogAndUpdateStateMachine(indexStart int, indexEnd int) ([]byte, error) {
 	var result []byte
-	for i := indexStart; i <= indexEnd; i++ {
-		log, err := core.GetLogEntry(i)
-		if err != nil {
-			return nil, err
-		}
-		result, err = exeStateMachineCmd(log.Command)
-		if err != nil {
-			return nil, err
-		}
-	}
+	//for i := indexStart; i <= indexEnd; i++ {
+	//	log, err := core.GetLogEntry(i)
+	//	if err != nil {
+	//		return nil, err
+	//	}
+	//	result, err = exeStateMachineCmd(log.Command)
+	//	if err != nil {
+	//		return nil, err
+	//	}
+	//}
 	return result, nil
 }
 

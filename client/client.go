@@ -7,12 +7,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/lnhote/noaḥ/config"
-	"github.com/lnhote/noaḥ/server/core"
+	"github.com/lnhote/noaḥ/core"
 )
 
 func main() {
-	serverAddr := flag.String("s", config.ClientPort, "server address")
+	serverAddr := flag.String("s", "127.0.0.1:8851", "server address")
 	flag.Parse()
 	// connect to server
 	args := os.Args[1:]
@@ -70,7 +69,7 @@ func parseCommand(commandParts []string) (*core.Command, error) {
 		if len(commandParts) != 3 {
 			return nil, fmt.Errorf("WrongCommand||%s", rawCommandStr)
 		}
-		return &core.Command{CommandType: core.CmdSet, Key: commandParts[1], Value: commandParts[2]}, nil
+		return &core.Command{CommandType: core.CmdSet, Key: commandParts[1], Value: []byte(commandParts[2])}, nil
 	}
 	return nil, fmt.Errorf("CommandNotSupported||%s", rawCommandStr)
 }

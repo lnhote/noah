@@ -3,7 +3,7 @@ package raftrpc
 import (
 	"net/rpc"
 
-	"github.com/lnhote/noaḥ/server/core"
+	"github.com/lnhote/noaḥ/core"
 	"github.com/v2pro/plz/countlog"
 )
 
@@ -15,10 +15,10 @@ func ExecuteCommand(cmd *core.Command) ([]byte, error) {
 // SendAppendEntryRPC is for leader only:
 // 1. append log.
 // 2. send heart beat.
-func SendAppendEntryRPC(serverAddr string, req *AppendRPCRequest) (*AppendRPCResponse, error) {
-	var client, err = rpc.Dial("tcp", serverAddr)
+func SendAppendEntryRPC(node *core.ServerInfo, req *AppendRPCRequest) (*AppendRPCResponse, error) {
+	var client, err = rpc.Dial("tcp", node.ServerAddr.String())
 	if err != nil {
-		countlog.Error("SendAppendEntryRPC Connect Error", "error", err.Error(), "serverAddr", serverAddr)
+		countlog.Error("SendAppendEntryRPC Connect Error", "error", err.Error(), "serverAddr", node.ServerAddr.String())
 		return nil, err
 	}
 	var resp AppendRPCResponse
@@ -31,8 +31,9 @@ func SendAppendEntryRPC(serverAddr string, req *AppendRPCRequest) (*AppendRPCRes
 
 // SendRequestVoteRPC is for candidate only:
 // 1. ask for vote for next leader election term
-func SendRequestVoteRPC(serverAddr string, req *RequestVoteRequest) (*RequestVoteResponse, error) {
-	var client, err = rpc.Dial("tcp", serverAddr)
+func SendRequestVoteRPC(node *core.ServerInfo, req *RequestVoteRequest) (*RequestVoteResponse, error) {
+	serverAddr := node
+	var client, err = rpc.Dial("tcp", node.ServerAddr.String())
 	if err != nil {
 		countlog.Error("SendRequestVoteRPC Connect Error", "error", err.Error(), "serverAddr", serverAddr)
 	}
