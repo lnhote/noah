@@ -23,14 +23,17 @@ type RaftServer struct {
 	FollowerInfo *core.FollowerState
 	Logs         *core.LogList
 
-	// private
 	leaderHeartBeatTicker *time.Ticker
-	countMutex            *sync.Mutex
-	wg                    *sync.WaitGroup
-	wgHandleCommand       *sync.WaitGroup
-	acceptedCount         int
-	ackCount              int
-	leaderElectionTimer   *time.Timer
+	HeartBeatDurationInMs int
+
+	leaderElectionTimer        *time.Timer
+	LeaderElectionDurationInMs int
+
+	countMutex      *sync.Mutex
+	wg              *sync.WaitGroup
+	wgHandleCommand *sync.WaitGroup
+	acceptedCount   int
+	ackCount        int
 }
 
 func NewRaftServer(conf *core.ServerConfig) *RaftServer {
@@ -38,29 +41,48 @@ func NewRaftServer(conf *core.ServerConfig) *RaftServer {
 	newServer.ServerConf = conf
 	newServer.Logs = core.NewLogList()
 	newServer.ServerInfo = core.NewServerState()
-	newServer.leaderHeartBeatTicker = time.NewTicker(5 * time.Millisecond)
 	newServer.countMutex = &sync.Mutex{}
 	newServer.wg = &sync.WaitGroup{}
 	newServer.wgHandleCommand = &sync.WaitGroup{}
 	newServer.acceptedCount = 0
 	newServer.ackCount = 0
-	newServer.leaderElectionTimer = time.NewTimer(time.Duration(20) * time.Millisecond)
 	return newServer
 }
 
-func (s *RaftServer) Start() {
-	go s.StartHeartbeatTimer()
+func (s *RaftServer) StartDefault() {
+	s.StartWithEnv(DefaultEnv)
+}
+
+func (s *RaftServer) StartWithEnv(env *Env) {
+	s.LeaderElectionDurationInMs = env.LeaderElectionDurationInMs
+	s.resetLeaderElectionTimer()
+	go s.startLeaderElectionTimer()
+
+	s.HeartBeatDurationInMs = env.HeartBeatDurationInMs
+	s.leaderHeartBeatTicker = time.NewTicker(time.Duration(s.HeartBeatDurationInMs) * time.Millisecond)
+	go s.startHeartbeatTimer()
+
+	for _, addr := range s.ServerConf.ClusterAddrList {
+		if s.ServerConf.Info.ServerId == addr.ServerId {
+			continue
+		}
+		s.ServerInfo.Followers[addr.ServerId] = &core.FollowerState{Node: addr}
+	}
+	s.startServe()
+}
+
+func (s *RaftServer) startServe() {
 	addr := s.ServerConf.Info.ServerAddr
 	rpc.Register(s)
 	listener, err := net.ListenTCP("tcp", addr)
 	if err != nil {
-		panic("Fail to start NoahCommandServer: " + err.Error())
+		panic("Fail to start RaftServer: " + err.Error())
 	}
-	countlog.Info(fmt.Sprintf("StartNoahCommandServer %d started", s.ServerConf.Info.ServerId), "addr", addr.String())
+	countlog.Info(fmt.Sprintf("Start RaftServer %d started", s.ServerConf.Info.ServerId), "addr", addr.String())
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			countlog.Error("StartNoahCommandServer failed to listen to port", "error", err, "addr", addr)
+			countlog.Error("RaftServer failed to listen to port", "error", err, "addr", addr)
 			continue
 		}
 		rpc.ServeConn(conn)
@@ -68,7 +90,7 @@ func (s *RaftServer) Start() {
 }
 
 // leader will send heart beat to followers periodically
-func (s *RaftServer) StartHeartbeatTimer() {
+func (s *RaftServer) startHeartbeatTimer() {
 	for {
 		<-s.leaderHeartBeatTicker.C
 		if s.ServerConf.Info.Role == core.RoleLeader {
@@ -80,24 +102,28 @@ func (s *RaftServer) StartHeartbeatTimer() {
 // leader send empty AppendRPC request to followers
 func (s *RaftServer) SendHearbeat() {
 	countlog.Info("SendHearbeat", "server", s.String())
-	req := &raftrpc.AppendRPCRequest{}
-	req.Term = s.ServerInfo.Term
+
 	for _, addr := range s.ServerConf.ClusterAddrList {
 		if s.ServerConf.Info.ServerId == addr.ServerId {
 			continue
 		}
 		lastTime := s.ServerInfo.Followers[addr.ServerId].LastRpcTime
-		if time.Now().Sub(lastTime) < time.Duration(10*time.Millisecond) {
+		if time.Now().Sub(lastTime) < time.Duration(s.HeartBeatDurationInMs)/2*time.Millisecond {
 			// Don't send heart beat if we already sent any log recently
+			countlog.Info(fmt.Sprintf("No need to send heartbeat to server %s: lastTime = %v", addr.String(), lastTime))
 			continue
 		}
+		req := &raftrpc.AppendRPCRequest{}
+		req.Term = s.ServerInfo.Term
 		req.Node = addr
-		go s.sendHeartbeatToServer(req)
+		go func(r *raftrpc.AppendRPCRequest) {
+			s.sendHeartbeatToServer(r)
+		}(req)
 	}
 }
 
 func (s *RaftServer) sendHeartbeatToServer(req *raftrpc.AppendRPCRequest) {
-	countlog.Info("sendHeartbeatToServer", "server", s.String())
+	countlog.Info("sendHeartbeatToServer", "from", s.String(), "to", req.Node.String())
 	resp, err := raftrpc.SendAppendEntryRPC(req.Node, req)
 	if err != nil {
 		countlog.Error("SendAppendEntryRPC Fail", "node", req.Node.String(), "error", err)
@@ -106,30 +132,36 @@ func (s *RaftServer) sendHeartbeatToServer(req *raftrpc.AppendRPCRequest) {
 	s.ServerInfo.Followers[resp.Node.ServerId].LastRpcTime = resp.Time
 }
 
-func (s *RaftServer) ResetLeaderElectionTimer() {
-	s.leaderElectionTimer.Reset(time.Duration(20) * time.Millisecond)
+func (s *RaftServer) resetLeaderElectionTimer() {
+	if s.leaderElectionTimer == nil {
+		s.leaderElectionTimer = time.NewTimer(time.Duration(s.LeaderElectionDurationInMs) * time.Millisecond)
+	}
+	s.leaderElectionTimer.Reset(time.Duration(s.LeaderElectionDurationInMs) * time.Millisecond)
 }
 
 // follower will start leader election on time out
-func (s *RaftServer) StartLeaderElectionTimer() {
+func (s *RaftServer) startLeaderElectionTimer() {
 	for {
 		<-s.leaderElectionTimer.C
-		s.ResetLeaderElectionTimer()
-		s.startElection()
+		countlog.Info("leaderElectionTimer fire", "server", s.String())
+		s.resetLeaderElectionTimer()
+		s.StartElection()
 	}
 }
 
-func (s *RaftServer) startElection() {
+func (s *RaftServer) StartElection() {
 	countlog.Info("startElection", "server", s.String())
 	if s.ServerConf.Info.Role == core.RoleFollower {
 		countlog.Info("leader is dead, start leader election")
 		s.ServerConf.Info.Role = core.RoleCandidate
-		s.SendRequestVoteToAll()
+	}
+	if s.ServerConf.Info.Role == core.RoleCandidate {
+		s.sendRequestVoteToAll()
 	}
 }
 
-func (s *RaftServer) SendRequestVoteToAll() {
-	countlog.Info("SendRequestVoteToAll error", "server", s.String())
+func (s *RaftServer) sendRequestVoteToAll() {
+	countlog.Info("sendRequestVoteToAll", "server", s.String())
 	for s.ServerInfo.Role == core.RoleCandidate {
 		req := &raftrpc.RequestVoteRequest{}
 		req.Candidate = s.ServerConf.Info
@@ -150,6 +182,14 @@ func (s *RaftServer) SendRequestVoteToAll() {
 			s.ServerInfo.Role = core.RoleLeader
 			s.ServerInfo.Term = s.ServerInfo.Term + 1
 			s.ServerInfo.LeaderId = s.ServerConf.Info.ServerId
+			s.ServerConf.LeaderInfo = s.ServerConf.Info
+			for _, addr := range s.ServerConf.ClusterAddrList {
+				if s.ServerConf.Info.ServerId == addr.ServerId {
+					continue
+				}
+				s.ServerInfo.Followers[addr.ServerId] = &core.FollowerState{Node: addr}
+			}
+			countlog.Info(fmt.Sprintf("New leader %s", s.ServerConf.Info.String()))
 			s.SendHearbeat()
 		} else {
 			// sleep random time duration (0 - 50 ms) and try again
@@ -181,6 +221,7 @@ func (s *RaftServer) String() string {
 }
 
 func (s *RaftServer) Get(cmd *core.Command, resp *core.ClientResponse) error {
+	countlog.Info("Get", "cmd", cmd)
 	if cmd == nil {
 		err := errors.New("EmptyCommand")
 		countlog.Error("event!EmptyCommand", "err", err.Error())
@@ -212,6 +253,7 @@ func (s *RaftServer) Get(cmd *core.Command, resp *core.ClientResponse) error {
 }
 
 func (s *RaftServer) Set(cmd *core.Command, resp *core.ClientResponse) error {
+	countlog.Info("Set", "cmd", cmd)
 	*resp = core.ClientResponse{}
 	if cmd == nil {
 		err := errors.New("EmptyCommand")
@@ -239,12 +281,13 @@ func (s *RaftServer) Set(cmd *core.Command, resp *core.ClientResponse) error {
 }
 
 func (s *RaftServer) OnReceiveAppendRPC(req *raftrpc.AppendRPCRequest, resp *raftrpc.AppendRPCResponse) error {
+	countlog.Info(fmt.Sprintf("%s OnReceiveAppendRPC from %s", s.ServerConf.Info, req.Node))
 	// 1. During leader election, if the dead leader revived, candidate has to become follower
 	// 2. After leader election, When the dead leader comes to live after a new leader is elected,
 	// leader has to become follower
 	s.ServerConf.Info.Role = core.RoleFollower
 	// leader is alive, so reset the timer
-	s.ResetLeaderElectionTimer()
+	s.resetLeaderElectionTimer()
 
 	s.ServerInfo.Term = req.Term
 	s.ServerInfo.CommitIndex = req.CommitIndex
@@ -252,7 +295,7 @@ func (s *RaftServer) OnReceiveAppendRPC(req *raftrpc.AppendRPCRequest, resp *raf
 	resp.Time = time.Now()
 	// check log before accept new logs from leader
 	term, err := s.Logs.GetLogTerm(req.PrevLogIndex)
-	if err != nil {
+	if err != nil && req.NextIndex != req.PrevLogIndex {
 		countlog.Info("Leader.PrevLogIndex does not exist here", "index", req.PrevLogIndex)
 		resp.UnmatchLogIndex = req.PrevLogIndex
 		return nil
@@ -273,6 +316,7 @@ func (s *RaftServer) OnReceiveAppendRPC(req *raftrpc.AppendRPCRequest, resp *raf
 
 // OnReceiveRequestVoteRPC will make the election decision: accept or reject
 func (s *RaftServer) OnReceiveRequestVoteRPC(req *raftrpc.RequestVoteRequest, resp *raftrpc.RequestVoteResponse) error {
+	countlog.Info("OnReceiveRequestVoteRPC", "req", req)
 	if s.ServerInfo.LastVotedTerm > req.NextTerm {
 		resp.Accept = false
 		return nil
@@ -307,6 +351,7 @@ func (s *RaftServer) OnReceiveRequestVoteRPC(req *raftrpc.RequestVoteRequest, re
 
 // AppendLog is the main flow
 func (s *RaftServer) AppendLog(cmd *core.Command) ([]byte, error) {
+	countlog.Info("AppendLog", "cmd", cmd)
 	newLog := &core.LogEntry{cmd, s.ServerInfo.NextIndex, s.ServerInfo.Term}
 	logIndex := store.SaveLogEntry(newLog)
 	s.wgHandleCommand.Add(len(s.ServerInfo.Followers))

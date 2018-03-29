@@ -22,8 +22,8 @@ func SendAppendEntryRPC(node *core.ServerInfo, req *AppendRPCRequest) (*AppendRP
 		return nil, err
 	}
 	var resp AppendRPCResponse
-	if err = client.Call("NoahClusterServer.OnReceiveAppendRPC", req, &resp); err != nil {
-		countlog.Error("NoahClusterServer.OnReceiveAppendRPC Fail", "error", err.Error())
+	if err = client.Call("RaftServer.OnReceiveAppendRPC", req, &resp); err != nil {
+		countlog.Error("RaftServer.OnReceiveAppendRPC Fail", "error", err.Error())
 		return nil, err
 	}
 	return &resp, nil
@@ -38,9 +38,9 @@ func SendRequestVoteRPC(node *core.ServerInfo, req *RequestVoteRequest) (*Reques
 		countlog.Error("SendRequestVoteRPC Connect Error", "error", err.Error(), "serverAddr", serverAddr)
 	}
 	var resp RequestVoteResponse
-	err = client.Call("NoahClusterServer.OnReceiveRequestVoteRPC", req, &resp)
+	err = client.Call("RaftServer.OnReceiveRequestVoteRPC", req, &resp)
 	if err != nil {
-		countlog.Error("NoahClusterServer.OnReceiveRequestVoteRPC Fail", "error", err.Error())
+		countlog.Error("RaftServer.OnReceiveRequestVoteRPC Fail", "error", err.Error())
 		return nil, err
 	}
 	return &resp, nil
