@@ -1,11 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
-
 	"github.com/lnhote/noaḥ/common"
 	"github.com/lnhote/noaḥ/core"
 	"github.com/lnhote/noaḥ/server"

@@ -235,6 +235,9 @@ func (s *RaftServer) sendRequestVoteToAll() {
 			if addr.ServerId == s.ServerConf.Info.ServerId {
 				continue
 			}
+			if addr.ServerId == s.ServerConf.LeaderInfo.ServerId {
+				continue
+			}
 			wg.Add(1)
 			go s.getVoteFromServer(addr, req, wg)
 		}
