@@ -1,0 +1,15 @@
+package: github.com/lnhote/noaḥ
+import:
+- package: github.com/siddontang/ledisdb
+  version: ~0.6.0
+  subpackages:
+  - config
+  - ledis
+  - store/rocksdb
+- package: github.com/v2pro/plz
+  version: ~0.9.1
+  subpackages:
+  - countlog
+  - countlog/output
+  - countlog/output/compact
+  - countlog/output/lumberjack

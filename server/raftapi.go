@@ -5,10 +5,9 @@ import (
 	"github.com/lnhote/noaḥ/server/raftrpc"
 )
 
-type RaftService interface {
-	Start()
+type RaftApi interface {
 	Get(cmd *core.Command, resp *core.ClientResponse) error
 	Set(cmd *core.Command, resp *core.ClientResponse) error
 	OnReceiveAppendRPC(req *raftrpc.AppendRPCRequest, resp *raftrpc.AppendRPCResponse) error
-	OnReceiveRequestVoteRPC(req *raftrpc.AppendRPCRequest, resp *raftrpc.AppendRPCResponse) error
+	OnReceiveRequestVoteRPC(req *raftrpc.RequestVoteRequest, resp *raftrpc.RequestVoteResponse) error
 }

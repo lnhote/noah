@@ -1,6 +1,8 @@
 package raftrpc
 
 import (
+	"fmt"
+	"net"
 	"net/rpc"
 
 	"github.com/lnhote/noaḥ/core"
@@ -15,15 +17,16 @@ func ExecuteCommand(cmd *core.Command) ([]byte, error) {
 // SendAppendEntryRPC is for leader only:
 // 1. append log.
 // 2. send heart beat.
-func SendAppendEntryRPC(node *core.ServerInfo, req *AppendRPCRequest) (*AppendRPCResponse, error) {
-	var client, err = rpc.Dial("tcp", node.ServerAddr.String())
+func SendAppendEntryRPC(followerAddr *net.TCPAddr, req *AppendRPCRequest) (*AppendRPCResponse, error) {
+	countlog.Info(fmt.Sprintf("%s SendAppendEntryRPC to %s", req.LeaderNode, followerAddr.String()))
+	var client, err = rpc.Dial("tcp", followerAddr.String())
 	if err != nil {
-		countlog.Error("SendAppendEntryRPC Connect Error", "error", err.Error(), "serverAddr", node.ServerAddr.String())
+		countlog.Error("SendAppendEntryRPC Connect Error", "error", err.Error(), "serverAddr", followerAddr.String())
 		return nil, err
 	}
 	var resp AppendRPCResponse
-	if err = client.Call("RaftServer.OnReceiveAppendRPC", req, &resp); err != nil {
-		countlog.Error("RaftServer.OnReceiveAppendRPC Fail", "error", err.Error())
+	if err = client.Call("RaftService.OnReceiveAppendRPC", req, &resp); err != nil {
+		countlog.Error("RaftService.OnReceiveAppendRPC Fail", "error", err.Error())
 		return nil, err
 	}
 	return &resp, nil
@@ -31,16 +34,16 @@ func SendAppendEntryRPC(node *core.ServerInfo, req *AppendRPCRequest) (*AppendRP
 
 // SendRequestVoteRPC is for candidate only:
 // 1. ask for vote for next leader election term
-func SendRequestVoteRPC(node *core.ServerInfo, req *RequestVoteRequest) (*RequestVoteResponse, error) {
-	serverAddr := node
-	var client, err = rpc.Dial("tcp", node.ServerAddr.String())
+func SendRequestVoteRPC(serverAddr *net.TCPAddr, req *RequestVoteRequest) (*RequestVoteResponse, error) {
+	countlog.Info(fmt.Sprintf("%s SendRequestVoteRPC to %s", req.Candidate, serverAddr))
+	var client, err = rpc.Dial("tcp", serverAddr.String())
 	if err != nil {
-		countlog.Error("SendRequestVoteRPC Connect Error", "error", err.Error(), "serverAddr", serverAddr)
+		countlog.Error("SendRequestVoteRPC Connect Error", "error", err.Error(), "serverAddr", serverAddr.String())
+		return nil, err
 	}
 	var resp RequestVoteResponse
-	err = client.Call("RaftServer.OnReceiveRequestVoteRPC", req, &resp)
-	if err != nil {
-		countlog.Error("RaftServer.OnReceiveRequestVoteRPC Fail", "error", err.Error())
+	if err = client.Call("RaftService.OnReceiveRequestVoteRPC", req, &resp); err != nil {
+		countlog.Error("RaftService.OnReceiveRequestVoteRPC Fail", "error", err.Error())
 		return nil, err
 	}
 	return &resp, nil

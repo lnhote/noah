@@ -7,7 +7,7 @@ import (
 )
 
 type AppendRPCRequest struct {
-	Node *core.ServerInfo
+	LeaderNode *core.ServerInfo
 
 	LogEntries   []*core.LogEntry
 	NextIndex    int
