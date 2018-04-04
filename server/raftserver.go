@@ -144,14 +144,14 @@ func (s *RaftServer) startHeartbeatTimer() {
 	for {
 		<-s.leaderHeartBeatTicker.C
 		if s.ServerConf.Info.Role == core.RoleLeader {
-			s.SendHearbeat()
+			s.SendHeartbeat()
 		}
 	}
 }
 
 // leader send empty AppendRPC request to followers
-func (s *RaftServer) SendHearbeat() {
-	countlog.Info(fmt.Sprintf("%s SendHearbeat", s))
+func (s *RaftServer) SendHeartbeat() {
+	countlog.Info(fmt.Sprintf("%s SendHeartbeat", s))
 
 	for _, node := range s.ServerConf.ClusterAddrList {
 		if s.ServerConf.Info.ServerId == node.ServerId {
@@ -248,7 +248,7 @@ func (s *RaftServer) sendRequestVoteToAll() {
 		if s.acceptedCount*2 > len(s.ServerConf.ClusterAddrList) {
 			becomeLeader(s)
 			countlog.Info(fmt.Sprintf("%s becomes new leader", s))
-			s.SendHearbeat()
+			s.SendHeartbeat()
 		} else {
 			sleepBeforeVote(s)
 		}

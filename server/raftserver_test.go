@@ -48,7 +48,7 @@ func TestLeaderElection(t *testing.T) {
 	go s3.Start()
 	go s4.Start()
 	go s5.Start()
-	countlog.Info("kill server " + s5.String())
+	countlog.Info("kill leader server " + s5.String())
 	s5.Stop()
 	<-done
 	fmt.Println("exiting")
