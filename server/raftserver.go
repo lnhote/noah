@@ -379,7 +379,7 @@ func (s *RaftServer) OnReceiveAppendRPC(req *raftrpc.AppendRPCRequest, resp *raf
 
 // OnReceiveRequestVoteRPC will make the election decision: accept or reject
 func (s *RaftServer) OnReceiveRequestVoteRPC(req *raftrpc.RequestVoteRequest, resp *raftrpc.RequestVoteResponse) error {
-	countlog.Info(fmt.Sprintf("%s OnReceiveRequestVoteRPC from %s, request=%+v", s, req.Candidate, req))
+	countlog.Info(fmt.Sprintf("%s OnReceiveRequestVoteRPC from %s", s, req.Candidate))
 	if s.ServerInfo.LastVotedTerm > req.NextTerm {
 		resp.Accept = false
 		return nil

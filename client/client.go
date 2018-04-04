@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/lnhote/noaḥ/core"
+	"github.com/lnhote/noah/core"
 )
 
 func main() {
