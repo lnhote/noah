@@ -5,7 +5,7 @@ import (
 	"net"
 	"net/rpc"
 
-	"github.com/lnhote/noaḥ/core"
+	"github.com/lnhote/noah/core"
 	"github.com/v2pro/plz/countlog"
 )
 

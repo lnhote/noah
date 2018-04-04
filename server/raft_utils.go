@@ -2,7 +2,7 @@ package server
 
 import (
 	"fmt"
-	"github.com/lnhote/noaḥ/core"
+	"github.com/lnhote/noah/core"
 	"github.com/v2pro/plz/countlog"
 	"math/rand"
 	"time"

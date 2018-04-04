@@ -12,10 +12,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/lnhote/noaḥ/core"
-	"github.com/lnhote/noaḥ/core/errorcode"
-	"github.com/lnhote/noaḥ/server/raftrpc"
-	"github.com/lnhote/noaḥ/server/store"
+	"github.com/lnhote/noah/core"
+	"github.com/lnhote/noah/core/errorcode"
+	"github.com/lnhote/noah/server/raftrpc"
+	"github.com/lnhote/noah/server/store"
 	"github.com/v2pro/plz/countlog"
 )
 

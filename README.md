@@ -9,6 +9,13 @@ noah is a distributed consensus kv store system.
 
 ## Getting started
 
+### 1. Install Rocksdb library
+https://github.com/facebook/rocksdb/blob/master/INSTALL.md
+
+```bash
+brew install rocksdb
+```
+
 ### client
 ```bash
 noah set {key} {value}

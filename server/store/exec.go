@@ -3,7 +3,7 @@ package store
 import (
 	"fmt"
 
-	"github.com/lnhote/noaḥ/core"
+	"github.com/lnhote/noah/core"
 )
 
 // SaveLogEntry add the command to uncommited log list

@@ -3,7 +3,7 @@ package raftrpc
 import (
 	"time"
 
-	"github.com/lnhote/noaḥ/core"
+	"github.com/lnhote/noah/core"
 )
 
 type AppendRPCRequest struct {

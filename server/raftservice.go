@@ -1,8 +1,8 @@
 package server
 
 import (
-	"github.com/lnhote/noaḥ/core"
-	"github.com/lnhote/noaḥ/server/raftrpc"
+	"github.com/lnhote/noah/core"
+	"github.com/lnhote/noah/server/raftrpc"
 )
 
 type RaftService struct {
