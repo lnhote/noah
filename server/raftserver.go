@@ -268,7 +268,7 @@ func (s *RaftServer) getVoteFromServer(node *core.ServerInfo, req *raftrpc.Reque
 		countlog.Info(fmt.Sprintf("%s Err %s", s, err))
 		return
 	}
-	countlog.Info(fmt.Sprintf("%s vote result from %s: %+v", s, node, resp))
+	countlog.Info(fmt.Sprintf("%s vote result from %s: %+v", s, node, resp.Accept))
 	s.countMutex.Lock()
 	s.ackCount++
 	if resp.Accept {
