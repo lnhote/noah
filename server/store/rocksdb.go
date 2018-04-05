@@ -15,6 +15,7 @@ var (
 func init() {
 	cfg := lediscfg.NewConfigDefault()
 	cfg.DBName = rocksdb.DBName
+	cfg.DataDir = "/tmp/noah"
 	l, err := ledis.Open(cfg)
 	if err != nil {
 		panic(err.Error())

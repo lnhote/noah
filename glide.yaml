@@ -1,15 +1,16 @@
-package: github.com/lnhote/noaḥ
+package: github.com/lnhote/noah
 import:
-- package: github.com/siddontang/ledisdb
+- package: github.com/siddontang/ledisdb.git
   version: ~0.6.0
   subpackages:
   - config
   - ledis
   - store/rocksdb
-- package: github.com/v2pro/plz
+- package: github.com/v2pro/plz.git
   version: ~0.9.1
   subpackages:
   - countlog
   - countlog/output
   - countlog/output/compact
   - countlog/output/lumberjack
+- package: golang.org/x/net

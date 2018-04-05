@@ -18,11 +18,16 @@ func becomeCandidate(s *RaftServer) {
 	s.ServerInfo.Role = core.RoleCandidate
 }
 
-func sleepBeforeVote(s *RaftServer) {
-	// sleep random time duration (0 - 50 ms) and try again
+// waitForNextRoundElection sleep random time duration (0 - 50 ms) and try again
+func waitForNextRoundElection(s *RaftServer) {
 	duration := rand.Intn(50)
 	time.Sleep(time.Millisecond * time.Duration(duration))
-	countlog.Info(fmt.Sprintf("%s will sleep %d ms and vote again", s))
+	countlog.Info(fmt.Sprintf("%s will sleep %d ms and vote again", s, duration))
+}
+
+func stopTimers(s *RaftServer) {
+	s.leaderElectionTimer.Stop()
+	s.leaderHeartBeatTimer.Stop()
 }
 
 func becomeLeader(s *RaftServer) {

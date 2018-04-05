@@ -1,3 +1,2 @@
 .idea/
-/server/var/LOCK
-server/var/
+vendor

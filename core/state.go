@@ -57,6 +57,7 @@ func NewServerState() *ServerState {
 	return state
 }
 
+// GetLastIndex return -1 if not exist
 func (ss *ServerState) GetLastIndex() int {
 	return ss.NextIndex - 1
 }

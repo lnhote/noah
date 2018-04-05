@@ -1,0 +1,85 @@
+hash: 5b9584f1965a2093cc92163d9c2d94f631dd54dc816583d3d73c459ee0787a6c
+updated: 2018-04-05T00:40:40.4879+08:00
+imports:
+- name: github.com/cupcake/rdb
+  version: 43ba34106c765f2111c0dc7b74cdf8ee437411e0
+  subpackages:
+  - crc64
+  - nopdecoder
+- name: github.com/edsrzf/mmap-go
+  version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
+- name: github.com/golang/snappy
+  version: 553a641470496b2327abcac10b36396bd98e45c9
+- name: github.com/pelletier/go-toml
+  version: 66540cf1fcd2c3aee6f6787dfa32a6ae9a870f12
+- name: github.com/siddontang/go
+  version: cb568a3e5cc06256f91a2da5a87455f717eb33f4
+  subpackages:
+  - filelock
+  - hack
+  - ioutil2
+  - log
+  - num
+  - snappy
+  - sync2
+- name: github.com/siddontang/ledisdb
+  version: 56900470a899883f691bcdf6bea4ac547f2a9a6f
+  subpackages:
+  - config
+  - ledis
+  - rpl
+  - store
+  - store/driver
+  - store/goleveldb
+  - store/leveldb
+  - store/rocksdb
+- name: github.com/siddontang/ledisdb.git
+  version: 56900470a899883f691bcdf6bea4ac547f2a9a6f
+  subpackages:
+  - config
+  - ledis
+  - store/rocksdb
+- name: github.com/siddontang/rdb
+  version: fc89ed2e418d27e3ea76e708e54276d2b44ae9cf
+- name: github.com/syndtr/goleveldb
+  version: 714f901b98fdb3aa954b4193d8cbd64a28d80cad
+  subpackages:
+  - leveldb
+  - leveldb/cache
+  - leveldb/comparer
+  - leveldb/errors
+  - leveldb/filter
+  - leveldb/iterator
+  - leveldb/journal
+  - leveldb/memdb
+  - leveldb/opt
+  - leveldb/storage
+  - leveldb/table
+  - leveldb/util
+- name: github.com/v2pro/plz
+  version: 10fc95fad3224a032229e59f6e7023137d82b526
+  subpackages:
+  - concurrent
+  - countlog
+  - countlog/output
+  - countlog/output/compact
+  - countlog/output/hrf
+  - countlog/output/lumberjack
+  - countlog/spi
+  - countlog/stats
+  - gls
+  - msgfmt
+  - msgfmt/jsonfmt
+  - reflect2
+- name: github.com/v2pro/plz.git
+  version: 10fc95fad3224a032229e59f6e7023137d82b526
+  subpackages:
+  - countlog
+  - countlog/output
+  - countlog/output/compact
+  - countlog/output/lumberjack
+- name: golang.org/x/net
+  version: b68f30494add4df6bd8ef5e82803f308e7f7c59c
+  subpackages:
+  - context
+testImports: []
