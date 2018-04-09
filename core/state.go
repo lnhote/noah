@@ -74,6 +74,7 @@ func (ss *ServerState) IsAcceptedByMajority(index int) bool {
 }
 
 type LogList struct {
+	// logs: logindex => log struct
 	logs map[int]*LogEntry
 }
 
@@ -81,8 +82,6 @@ func NewLogList() *LogList {
 	logList := &LogList{logs: map[int]*LogEntry{}}
 	return logList
 }
-
-// LogsToCommit: logindex = command struct
 
 func (ll *LogList) GetLogTerm(index int) (int, error) {
 	entry, err := ll.GetLogEntry(index)

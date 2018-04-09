@@ -305,6 +305,10 @@ func (s *RaftServer) OnReceiveRequestVoteRPC(req *raftrpc.RequestVoteRequest, re
 		return nil
 	}
 	if s.ServerInfo.LastVotedTerm == req.NextTerm {
+		if req.NextTerm == 0 {
+			resp.Accept = true
+			return nil
+		}
 		if s.ServerInfo.LastVotedServerId == req.Candidate.ServerId {
 			resp.Accept = true
 		} else {
@@ -334,7 +338,6 @@ func (s *RaftServer) OnReceiveRequestVoteRPC(req *raftrpc.RequestVoteRequest, re
 		s.ServerInfo.LastVotedTerm = req.NextTerm
 		s.ServerInfo.LastVotedServerId = req.Candidate.ServerId
 	}
-
 	return nil
 }
 

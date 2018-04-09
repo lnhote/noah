@@ -3,6 +3,7 @@ package server
 import (
 	"github.com/lnhote/noah/common"
 	"github.com/lnhote/noah/core"
+	"github.com/lnhote/noah/server/raftrpc"
 	"github.com/stretchr/testify/assert"
 	"log"
 	"net/rpc"
@@ -141,4 +142,38 @@ func TestLeaderElectionAfterLeaderDead(t *testing.T) {
 	atLeastOne := s1.leaderElectionTimer.LastFiredTime() != s1Last || s2.leaderElectionTimer.LastFiredTime() != s2Last ||
 		s3.leaderElectionTimer.LastFiredTime() != s3Last || s4.leaderElectionTimer.LastFiredTime() != s4Last
 	assert.True(t, atLeastOne)
+}
+
+func TestVoteRejectCase(t *testing.T) {
+	s1 := NewRaftServerWithEnv(core.NewServerConf(clusters[1], leader, clusters), env)
+	cmd := &core.Command{CommandType: core.CmdSet, Key: "name", Value: []byte("test")}
+	s1.Logs.SaveLogEntry(&core.LogEntry{Command: cmd, Index: 1, Term: 1})
+	s1.Logs.SaveLogEntry(&core.LogEntry{Command: cmd, Index: 2, Term: 2})
+	s1.Logs.SaveLogEntry(&core.LogEntry{Command: cmd, Index: 3, Term: 3})
+	s1.Logs.SaveLogEntry(&core.LogEntry{Command: cmd, Index: 4, Term: 4})
+	s1.ServerInfo.NextIndex = 5
+	reqCandidate := &raftrpc.RequestVoteRequest{}
+	reqCandidate.Candidate = clusters[2]
+	res := raftrpc.RequestVoteResponse{}
+	reqCandidate.NextTerm = 5
+
+	// case 1: term is too small
+	reqCandidate.LastLogIndex = 3
+	reqCandidate.LastLogTerm = 3
+	assert.Nil(t, s1.OnReceiveRequestVoteRPC(reqCandidate, &res))
+	assert.False(t, res.Accept)
+
+	// case 1: length is small
+	reqCandidate.LastLogIndex = 3
+	reqCandidate.LastLogTerm = 4
+	assert.Nil(t, s1.OnReceiveRequestVoteRPC(reqCandidate, &res))
+	assert.False(t, res.Accept)
+
+	// case 1: good enough
+	reqCandidate.LastLogIndex = 4
+	reqCandidate.LastLogTerm = 4
+	assert.Nil(t, s1.OnReceiveRequestVoteRPC(reqCandidate, &res))
+	assert.True(t, res.Accept)
+	assert.True(t, s1.ServerInfo.LastVotedTerm == reqCandidate.NextTerm)
+
 }
