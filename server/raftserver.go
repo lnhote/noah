@@ -32,6 +32,7 @@ type RaftServer struct {
 
 	leaderHeartBeatTimer *eventTimer
 	leaderElectionTimer  *eventTimer
+	RandomRangeInMs      int
 
 	wgHandleCommand *sync.WaitGroup
 
@@ -51,6 +52,7 @@ func NewRaftServerWithEnv(conf *core.ServerConfig, env *Env) *RaftServer {
 	newServer.Logs = core.NewLogList()
 	newServer.ServerInfo = core.NewServerState()
 	newServer.wgHandleCommand = &sync.WaitGroup{}
+	newServer.RandomRangeInMs = env.RandomRangeInMs
 	newServer.leaderElectionTimer = NewEventTimer(newServer.LeaderElectionEventHandler, env.LeaderElectionDurationInMs)
 	newServer.leaderHeartBeatTimer = NewEventTimer(newServer.HeartbeatEventHandler, env.HeartBeatDurationInMs)
 	for _, addr := range newServer.ServerConf.ClusterAddrList {
@@ -172,7 +174,7 @@ func (s *RaftServer) LeaderElectionEventHandler() {
 		return
 	}
 	countlog.Info(fmt.Sprintf("%s starts leader election for term %d, old leader %s is dead",
-		s.String(), s.ServerInfo.Term+1, s.ServerConf.LeaderInfo))
+		s.String(), s.ServerInfo.Term+1, s.ServerConf.LeaderInfo.String()))
 	if s.ServerConf.Info.Role == core.RoleFollower {
 		becomeCandidate(s)
 	}
@@ -183,7 +185,7 @@ func (s *RaftServer) LeaderElectionEventHandler() {
 				becomeLeader(s)
 				countlog.Info(fmt.Sprintf("%s becomes new leader", s))
 			} else {
-				countlog.Info(fmt.Sprintf("%s votes %+v not enough", s, voteResult))
+				countlog.Info(fmt.Sprintf("%s votes %s not enough", s.String(), voteResult.String()))
 				waitForNextRoundElection(s)
 			}
 		}
@@ -221,9 +223,8 @@ func (s *RaftServer) collectVotes() *voteCounter {
 }
 
 func (s *RaftServer) sendRequestVoteToServer(node *core.ServerInfo, req *raftrpc.RequestVoteRequest, counter *voteCounter) {
-	countlog.Info(fmt.Sprintf("%s sendRequestVoteToServer_start %s", s, node))
+	countlog.Debug(fmt.Sprintf("%s sendRequestVoteToServer_start %s", s, node.String()))
 	defer func() {
-		countlog.Info(fmt.Sprintf("%s sendRequestVoteToServer_exit %s", s, node))
 		counter.WG.Done()
 	}()
 	client, err := s.clientPool.Get(node.ServerAddr)
@@ -237,11 +238,11 @@ func (s *RaftServer) sendRequestVoteToServer(node *core.ServerInfo, req *raftrpc
 	var resp raftrpc.RequestVoteResponse
 	go func() {
 		if err = client.Call("RaftService.OnReceiveRequestVoteRPC", req, &resp); err != nil {
-			countlog.Error(fmt.Sprintf("%s RaftService.OnReceiveRequestVoteRPC_fail from %s: %s", s, node, err.Error()))
+			countlog.Error(fmt.Sprintf("%s RaftService.OnReceiveRequestVoteRPC_fail from %s: %s", s.String(), node.String(), err.Error()))
 			done <- FAIL
 			return
 		}
-		countlog.Info(fmt.Sprintf("%s OnReceiveRequestVoteRPC_success from %s: %+v", s, node, resp.Accept))
+		countlog.Debug(fmt.Sprintf("%s OnReceiveRequestVoteRPC_success from %s: %+v", s.String(), node.String(), resp.Accept))
 		done <- SUCCESS
 	}()
 	select {

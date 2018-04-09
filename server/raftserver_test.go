@@ -28,8 +28,8 @@ var (
 
 	leader = clusters[0]
 
-	env        = &Env{HeartBeatDurationInMs: 1000, LeaderElectionDurationInMs: 5000}
-	envNoTimer = &Env{HeartBeatDurationInMs: 0, LeaderElectionDurationInMs: 0}
+	env        = &Env{HeartBeatDurationInMs: 1000, LeaderElectionDurationInMs: 5000, RandomRangeInMs: 3000}
+	envNoTimer = &Env{HeartBeatDurationInMs: 0, LeaderElectionDurationInMs: 0, RandomRangeInMs: 50}
 )
 
 func init() {
@@ -152,6 +152,8 @@ func TestVoteRejectCase(t *testing.T) {
 	s1.Logs.SaveLogEntry(&core.LogEntry{Command: cmd, Index: 3, Term: 3})
 	s1.Logs.SaveLogEntry(&core.LogEntry{Command: cmd, Index: 4, Term: 4})
 	s1.ServerInfo.NextIndex = 5
+	s1.ServerInfo.Term = 4
+
 	reqCandidate := &raftrpc.RequestVoteRequest{}
 	reqCandidate.Candidate = clusters[2]
 	res := raftrpc.RequestVoteResponse{}
@@ -163,17 +165,37 @@ func TestVoteRejectCase(t *testing.T) {
 	assert.Nil(t, s1.OnReceiveRequestVoteRPC(reqCandidate, &res))
 	assert.False(t, res.Accept)
 
-	// case 1: length is small
+	// case 2: length is small
 	reqCandidate.LastLogIndex = 3
 	reqCandidate.LastLogTerm = 4
 	assert.Nil(t, s1.OnReceiveRequestVoteRPC(reqCandidate, &res))
 	assert.False(t, res.Accept)
 
-	// case 1: good enough
+	// case 3: good enough
 	reqCandidate.LastLogIndex = 4
 	reqCandidate.LastLogTerm = 4
 	assert.Nil(t, s1.OnReceiveRequestVoteRPC(reqCandidate, &res))
 	assert.True(t, res.Accept)
 	assert.True(t, s1.ServerInfo.LastVotedTerm == reqCandidate.NextTerm)
+
+	// case 4: term is too old
+	reqCandidate.LastLogIndex = 4
+	reqCandidate.LastLogTerm = 4
+	reqCandidate.NextTerm = 3
+	assert.Nil(t, s1.OnReceiveRequestVoteRPC(reqCandidate, &res))
+	assert.False(t, res.Accept)
+
+	// case 5: already voted this
+	s1.ServerInfo.LastVotedServerId = clusters[2].ServerId
+	reqCandidate.NextTerm = 5
+	s1.ServerInfo.LastVotedTerm = 5
+	assert.Nil(t, s1.OnReceiveRequestVoteRPC(reqCandidate, &res))
+	assert.True(t, res.Accept)
+
+	// case 6: already voted other
+	s1.ServerInfo.LastVotedServerId = 100
+	s1.ServerInfo.LastVotedTerm = 5
+	assert.Nil(t, s1.OnReceiveRequestVoteRPC(reqCandidate, &res))
+	assert.False(t, res.Accept)
 
 }
