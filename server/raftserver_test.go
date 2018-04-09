@@ -138,10 +138,14 @@ func TestLeaderElectionAfterLeaderDead(t *testing.T) {
 	s2Last := s2.leaderElectionTimer.LastFiredTime()
 	s3Last := s3.leaderElectionTimer.LastFiredTime()
 	s4Last := s4.leaderElectionTimer.LastFiredTime()
-	time.Sleep(time.Second * 10)
+	time.Sleep(time.Second * 20)
 	atLeastOne := s1.leaderElectionTimer.LastFiredTime() != s1Last || s2.leaderElectionTimer.LastFiredTime() != s2Last ||
 		s3.leaderElectionTimer.LastFiredTime() != s3Last || s4.leaderElectionTimer.LastFiredTime() != s4Last
 	assert.True(t, atLeastOne)
+	atLeastOneLeader := s1.ServerInfo.Role == core.RoleLeader || s2.ServerInfo.Role == core.RoleLeader ||
+		s3.ServerInfo.Role == core.RoleLeader || s4.ServerInfo.Role == core.RoleLeader
+	assert.True(t, atLeastOneLeader)
+
 }
 
 func TestVoteRejectCase(t *testing.T) {

@@ -186,6 +186,7 @@ func (s *RaftServer) LeaderElectionEventHandler() {
 				countlog.Info(fmt.Sprintf("%s becomes new leader", s))
 			} else {
 				countlog.Info(fmt.Sprintf("%s votes %s not enough", s.String(), voteResult.String()))
+				s.ServerInfo.LastVotedTerm = s.ServerInfo.LastVotedTerm - 1
 				waitForNextRoundElection(s)
 			}
 		}
@@ -305,6 +306,7 @@ func (s *RaftServer) OnReceiveRequestVoteRPC(req *raftrpc.RequestVoteRequest, re
 		resp.Accept = false
 		return nil
 	}
+	// TODO need to reset after some timeout incase it is for the same around
 	if s.ServerInfo.LastVotedTerm == req.NextTerm {
 		if req.NextTerm == 0 {
 			resp.Accept = true
