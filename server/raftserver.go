@@ -85,8 +85,8 @@ func (s *RaftServer) Start() {
 // Stop shuts down a raft server
 func (s *RaftServer) Stop() {
 	s.stopSignal <- 1
-	s.leaderElectionTimer.Start()
-	s.leaderHeartBeatTimer.Start()
+	s.leaderElectionTimer.Stop()
+	s.leaderHeartBeatTimer.Stop()
 }
 
 // startServe starts listening to port and handles requests
@@ -98,7 +98,7 @@ func (s *RaftServer) startServe() {
 		panic("Fail to start RaftServer: " + err.Error())
 	}
 	//rpc.Accept(listener)
-	countlog.Info(fmt.Sprintf("%s started", s.ServerConf.Info))
+	countlog.Info(fmt.Sprintf("%s started", s))
 stopServeLoop:
 	for {
 		select {
@@ -106,7 +106,6 @@ stopServeLoop:
 			s.handleSignal(sig)
 			break stopServeLoop
 		case <-s.stopSignal:
-			stopTimers(s)
 			break stopServeLoop
 		default:
 			conn, err := listener.Accept()
@@ -114,10 +113,11 @@ stopServeLoop:
 				countlog.Error("RaftServer is busy", "error", err)
 				continue
 			}
-			//countlog.Debug(fmt.Sprintf("%s localPort %s, remotePort %s", s, conn.LocalAddr(), conn.RemoteAddr()))
+			countlog.Debug(fmt.Sprintf("%s localPort %s, remotePort %s", s, conn.LocalAddr(), conn.RemoteAddr()))
 			go rpcServer.ServeConn(conn)
 		}
 	}
+	listener.Close()
 	countlog.Info(fmt.Sprintf("%s stoped", s))
 }
 
@@ -171,7 +171,7 @@ func (s *RaftServer) LeaderElectionEventHandler() {
 	if s.ServerConf.Info.Role == core.RoleLeader {
 		return
 	}
-	countlog.Info(fmt.Sprintf("%s started leader election for term %d, old leader %s is dead",
+	countlog.Info(fmt.Sprintf("%s starts leader election for term %d, old leader %s is dead",
 		s.String(), s.ServerInfo.Term+1, s.ServerConf.LeaderInfo))
 	if s.ServerConf.Info.Role == core.RoleFollower {
 		becomeCandidate(s)
@@ -237,7 +237,7 @@ func (s *RaftServer) sendRequestVoteToServer(node *core.ServerInfo, req *raftrpc
 	var resp raftrpc.RequestVoteResponse
 	go func() {
 		if err = client.Call("RaftService.OnReceiveRequestVoteRPC", req, &resp); err != nil {
-			countlog.Error(fmt.Sprintf("%s RaftService.OnReceiveRequestVoteRPC_fail from %s: %s", node, err.Error()))
+			countlog.Error(fmt.Sprintf("%s RaftService.OnReceiveRequestVoteRPC_fail from %s: %s", s, node, err.Error()))
 			done <- FAIL
 			return
 		}

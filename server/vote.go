@@ -1,6 +1,9 @@
 package server
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 type voteCounter struct {
 	Accept     int
@@ -18,6 +21,11 @@ func NewVoteCounter(total int) *voteCounter {
 		countMutex: &sync.Mutex{},
 		WG:         &sync.WaitGroup{},
 	}
+}
+
+func (v *voteCounter) String() string {
+	return fmt.Sprintf("voteCounter:{accept:%d, reject:%d, fail:%d, total:%d, timeout:%d}",
+		v.Accept, v.Reject, v.Fail, v.Total, v.Timeout)
 }
 
 func (v *voteCounter) Reset() {
