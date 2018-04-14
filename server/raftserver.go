@@ -11,9 +11,10 @@ import (
 	"time"
 
 	"github.com/lnhote/noah/core"
+	"github.com/lnhote/noah/core/entity"
 	"github.com/lnhote/noah/core/errmsg"
 	"github.com/lnhote/noah/core/errno"
-	"github.com/lnhote/noah/server/raftrpc"
+	"github.com/lnhote/noah/core/raftrpc"
 	"github.com/lnhote/noah/server/store"
 	"github.com/v2pro/plz/countlog"
 )
@@ -141,7 +142,7 @@ func (s *RaftServer) Stop() {
 // startServe starts listening to port and handles requests
 func (s *RaftServer) startServe() {
 	rpcServer := rpc.NewServer()
-	rpcServer.Register(NewRaftService(s))
+	rpcServer.Register(raftrpc.NewRaftService(s))
 	listener, err := net.ListenTCP("tcp", s.ServerConf.Info.ServerAddr)
 	if err != nil {
 		panic("Fail to start RaftServer: " + err.Error())
@@ -326,6 +327,7 @@ func (s *RaftServer) OnReceiveAppendRPC(req *raftrpc.AppendRPCRequest, resp *raf
 	countlog.Info(fmt.Sprintf("%s OnReceiveAppendRPC from %s", s.ServerConf.Info, req.LeaderNode.ServerAddr))
 	// this leader is too old, not valid
 	if s.stableInfo.Term > req.Term {
+		countlog.Error("request term %d is too old, server term is %d", req.Term, s.stableInfo.Term)
 		resp.Success = false
 		resp.Term = s.stableInfo.Term
 		return nil
@@ -423,7 +425,7 @@ func (s *RaftServer) OnReceiveRequestVoteRPC(req *raftrpc.RequestVoteRequest, re
 	return nil
 }
 
-func (s *RaftServer) Get(cmd *core.Command, resp *core.ClientResponse) error {
+func (s *RaftServer) Get(cmd *entity.Command, resp *raftrpc.ClientResponse) error {
 	countlog.Info("Get", "cmd", cmd)
 	if cmd == nil {
 		resp.Errcode = errno.MissingParam
@@ -436,7 +438,7 @@ func (s *RaftServer) Get(cmd *core.Command, resp *core.ClientResponse) error {
 		return nil
 	}
 	switch cmd.CommandType {
-	case core.CmdGet:
+	case entity.CmdGet:
 		val, err := store.DBGet(cmd.Key)
 		if err != nil {
 			countlog.Error("DBGet failed", "key", cmd.Key, "error", err)
@@ -452,7 +454,7 @@ func (s *RaftServer) Get(cmd *core.Command, resp *core.ClientResponse) error {
 	return nil
 }
 
-func (s *RaftServer) Set(cmd *core.Command, resp *core.ClientResponse) error {
+func (s *RaftServer) Set(cmd *entity.Command, resp *raftrpc.ClientResponse) error {
 	countlog.Info("Set", "cmd", cmd)
 	if cmd == nil {
 		resp.Errcode = errno.MissingParam
@@ -466,7 +468,7 @@ func (s *RaftServer) Set(cmd *core.Command, resp *core.ClientResponse) error {
 		return nil
 	}
 	switch cmd.CommandType {
-	case core.CmdSet:
+	case entity.CmdSet:
 		val, err := s.ReplicateLog(cmd)
 		if err != nil {
 			countlog.Error("DBSet -> ReplicateLog failed", "key", cmd.Key, "error", err)
@@ -490,7 +492,7 @@ type replcateResult struct {
 }
 
 // ReplicateLog replicates logs to follower
-func (s *RaftServer) ReplicateLog(cmd *core.Command) ([]byte, error) {
+func (s *RaftServer) ReplicateLog(cmd *entity.Command) ([]byte, error) {
 	prevLogIndex := getLastLogIndex(s)
 	appendLogEntry(s, cmd)
 	countlog.Info("ReplicateLog to follwers", "cmd", cmd)
@@ -572,7 +574,7 @@ func (s *RaftServer) applyLogs() {
 		countlog.Info(fmt.Sprintf("apply log %d", i))
 		if logToApply, err := s.stableInfo.Logs.GetLogEntry(i); err == nil {
 			if dbErr := store.DBSet(logToApply.Command.Key, logToApply.Command.Value); dbErr == nil {
-				countlog.Info(fmt.Sprintf("apply log %d %s success", i, logToApply.Command.String()))
+				countlog.Info(fmt.Sprintf("apply log %d [%s] success", i, logToApply.Command.String()))
 				s.volatileInfo.LastApplied++
 			} else {
 				countlog.Error(fmt.Sprintf("applyLogs fails to DBSet %s: %s", logToApply.Command, err.Error()))

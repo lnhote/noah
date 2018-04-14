@@ -3,7 +3,8 @@ package server
 import (
 	"fmt"
 	"github.com/lnhote/noah/core"
-	"github.com/lnhote/noah/server/raftrpc"
+	"github.com/lnhote/noah/core/entity"
+	"github.com/lnhote/noah/core/raftrpc"
 	"github.com/v2pro/plz/countlog"
 	"math/rand"
 	"time"
@@ -88,7 +89,7 @@ func saveLogEntry(s *RaftServer, log *core.LogEntry) {
 	s.stableInfo.Logs.SaveLogEntry(log)
 }
 
-func appendLogEntry(s *RaftServer, cmd *core.Command) {
+func appendLogEntry(s *RaftServer, cmd *entity.Command) {
 	newLog := &core.LogEntry{Command: cmd, Index: getNextLogIndex(s), Term: s.stableInfo.Term}
 	saveLogEntry(s, newLog)
 }

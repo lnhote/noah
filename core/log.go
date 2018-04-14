@@ -1,9 +1,12 @@
 package core
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/lnhote/noah/core/entity"
+)
 
 type LogEntry struct {
-	Command *Command
+	Command *entity.Command
 	Index   int
 	Term    int
 }

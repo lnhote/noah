@@ -3,7 +3,8 @@ package server
 import (
 	"github.com/lnhote/noah/common"
 	"github.com/lnhote/noah/core"
-	"github.com/lnhote/noah/server/raftrpc"
+	"github.com/lnhote/noah/core/entity"
+	"github.com/lnhote/noah/core/raftrpc"
 	"github.com/stretchr/testify/assert"
 	"log"
 	"net/rpc"
@@ -148,8 +149,8 @@ func TestLeaderElectionAfterLeaderDead(t *testing.T) {
 
 }
 
-func newTestCmd() *core.Command {
-	return &core.Command{CommandType: core.CmdSet, Key: "name", Value: []byte("test")}
+func newTestCmd() *entity.Command {
+	return &entity.Command{CommandType: entity.CmdSet, Key: "name", Value: []byte("test")}
 }
 
 func pushTestLog(s *RaftServer, index int, term int) {
@@ -222,4 +223,14 @@ func TestRaftServer_AppendLog(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, []byte("test"), val)
 	// make sure followers get this log
+	assert.Equal(t, 1, getLastLogIndex(s2))
+	assert.Equal(t, 1, getLastLogTerm(s2))
+	assert.Equal(t, 1, getLastLogIndex(s3))
+	assert.Equal(t, 1, getLastLogTerm(s3))
+	assert.Equal(t, 1, getLastLogIndex(s4))
+	assert.Equal(t, 1, getLastLogTerm(s4))
+	assert.Equal(t, 1, getLastLogIndex(s5))
+	assert.Equal(t, 1, getLastLogTerm(s5))
+	logEntry, _ := s5.stableInfo.Logs.GetLogEntry(1)
+	assert.Equal(t, "test", string(logEntry.Command.Value))
 }
