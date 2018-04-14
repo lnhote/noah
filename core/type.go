@@ -7,11 +7,6 @@ import (
 	"github.com/lnhote/noah/core/errmsg"
 )
 
-const (
-	CmdSet = iota
-	CmdGet
-)
-
 type Command struct {
 	CommandType int
 	Key         string
@@ -27,12 +22,6 @@ func (c Command) String() string {
 	default:
 		return errmsg.NoSuchCommand.Error()
 	}
-}
-
-type LogEntry struct {
-	Command *Command
-	Index   int
-	Term    int
 }
 
 type ClientResponse struct {
@@ -51,19 +40,6 @@ type ServerInfo struct {
 func (s *ServerInfo) String() string {
 	return fmt.Sprintf("Server[%d](%s)<%s>", s.ServerId, s.ServerAddr.String(),
 		getRoleName(s.Role))
-}
-
-func getRoleName(role int) string {
-	switch role {
-	case RoleFollower:
-		return "Follower"
-	case RoleLeader:
-		return "Leader"
-	case RoleCandidate:
-		return "Candidate"
-	default:
-		return "UnknownRole"
-	}
 }
 
 func NewServerInfo(id int, role int, serverAddr string) *ServerInfo {
