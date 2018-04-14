@@ -1,4 +1,4 @@
-package server
+package core
 
 var (
 	DefaultEnv = &Env{

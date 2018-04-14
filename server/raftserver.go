@@ -85,10 +85,10 @@ type RaftServer struct {
 }
 
 func NewRaftServer(conf *core.ServerConfig) *RaftServer {
-	return NewRaftServerWithEnv(conf, DefaultEnv)
+	return NewRaftServerWithEnv(conf, core.DefaultEnv)
 }
 
-func NewRaftServerWithEnv(conf *core.ServerConfig, env *Env) *RaftServer {
+func NewRaftServerWithEnv(conf *core.ServerConfig, env *core.Env) *RaftServer {
 	newServer := &RaftServer{}
 	newServer.ServerConf = conf
 	newServer.stableInfo = &core.PersistentState{0, 0, core.NewLogRepo()}
