@@ -1,37 +1,56 @@
 package raftrpc
 
 import (
-	"time"
-
 	"github.com/lnhote/noah/core"
 )
 
 type AppendRPCRequest struct {
+	// leaderId
 	LeaderNode *core.ServerInfo
 
-	LogEntries   []*core.LogEntry
-	NextIndex    int
-	Term         int
-	PrevLogTerm  int
+	// log entries to store (empty for heartbeat; may send more than one for efficiency)
+	LogEntries []*core.LogEntry
+
+	// leader’s term
+	Term int
+
+	// term of prevLogIndex entry
+	PrevLogTerm int
+
+	// index of log entry immediately preceding new ones
 	PrevLogIndex int
-	CommitIndex  int
+
+	// leader’s commitIndex
+	CommitIndex int
 }
 
 type AppendRPCResponse struct {
-	Node            *core.ServerInfo
-	LastLogIndex    int
-	LastLogTerm     int
-	Time            time.Time
-	UnmatchLogIndex int
+
+	// currentTerm, for leader to update itself
+	Term int
+
+	// true if follower contained entry matching prevLogIndex and prevLogTerm
+	Success bool
 }
 
 type RequestVoteRequest struct {
-	LastLogTerm  int
+	// term of candidate’s last log entry
+	LastLogTerm int
+
+	// index of candidate’s last log entry
 	LastLogIndex int
-	NextTerm     int
-	Candidate    *core.ServerInfo
+
+	// candidate’s term
+	NextTerm int
+
+	// candidate requesting vote
+	Candidate *core.ServerInfo
 }
 
 type RequestVoteResponse struct {
+	// currentTerm, for candidate to update itself
+	Term int
+
+	// true means candidate received vote
 	Accept bool
 }

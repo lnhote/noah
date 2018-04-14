@@ -142,64 +142,84 @@ func TestLeaderElectionAfterLeaderDead(t *testing.T) {
 	atLeastOne := s1.leaderElectionTimer.LastFiredTime() != s1Last || s2.leaderElectionTimer.LastFiredTime() != s2Last ||
 		s3.leaderElectionTimer.LastFiredTime() != s3Last || s4.leaderElectionTimer.LastFiredTime() != s4Last
 	assert.True(t, atLeastOne)
-	atLeastOneLeader := s1.ServerInfo.Role == core.RoleLeader || s2.ServerInfo.Role == core.RoleLeader ||
-		s3.ServerInfo.Role == core.RoleLeader || s4.ServerInfo.Role == core.RoleLeader
+	atLeastOneLeader := s1.ServerConf.Info.Role == core.RoleLeader || s2.ServerConf.Info.Role == core.RoleLeader ||
+		s3.ServerConf.Info.Role == core.RoleLeader || s4.ServerConf.Info.Role == core.RoleLeader
 	assert.True(t, atLeastOneLeader)
 
 }
 
-func TestVoteRejectCase(t *testing.T) {
-	s1 := NewRaftServerWithEnv(core.NewServerConf(clusters[1], leader, clusters), env)
-	cmd := &core.Command{CommandType: core.CmdSet, Key: "name", Value: []byte("test")}
-	s1.Logs.SaveLogEntry(&core.LogEntry{Command: cmd, Index: 1, Term: 1})
-	s1.Logs.SaveLogEntry(&core.LogEntry{Command: cmd, Index: 2, Term: 2})
-	s1.Logs.SaveLogEntry(&core.LogEntry{Command: cmd, Index: 3, Term: 3})
-	s1.Logs.SaveLogEntry(&core.LogEntry{Command: cmd, Index: 4, Term: 4})
-	s1.ServerInfo.NextIndex = 5
-	s1.ServerInfo.Term = 4
+func newTestCmd() *core.Command {
+	return &core.Command{CommandType: core.CmdSet, Key: "name", Value: []byte("test")}
+}
 
+func pushTestLog(s *RaftServer, index int, term int) {
+	saveLogEntry(s, &core.LogEntry{Command: newTestCmd(), Index: index, Term: term})
+}
+
+func newTestVoteReq(term, lastLogIndex, lastLogTerm int) *raftrpc.RequestVoteRequest {
 	reqCandidate := &raftrpc.RequestVoteRequest{}
 	reqCandidate.Candidate = clusters[2]
-	res := raftrpc.RequestVoteResponse{}
-	reqCandidate.NextTerm = 5
+	reqCandidate.NextTerm = term
+	reqCandidate.LastLogIndex = lastLogIndex
+	reqCandidate.LastLogTerm = lastLogTerm
+	return reqCandidate
+}
 
-	// case 1: term is too small
-	reqCandidate.LastLogIndex = 3
-	reqCandidate.LastLogTerm = 3
-	assert.Nil(t, s1.OnReceiveRequestVoteRPC(reqCandidate, &res))
+func TestVoteRejectCase(t *testing.T) {
+	s1 := NewRaftServerWithEnv(core.NewServerConf(clusters[1], leader, clusters), env)
+	// add some logs first
+	pushTestLog(s1, 1, 1)
+	pushTestLog(s1, 2, 2)
+	pushTestLog(s1, 3, 3)
+	pushTestLog(s1, 4, 4)
+	resetVote(s1)
+	assert.Equal(t, 4, getLastLogTerm(s1))
+	assert.Equal(t, 4, getLastLogIndex(s1))
+	res := raftrpc.RequestVoteResponse{}
+	updateTerm(s1, 4)
+
+	// case 1: last log term is too small
+	assert.Nil(t, s1.OnReceiveRequestVoteRPC(newTestVoteReq(5, 3, 3), &res))
 	assert.False(t, res.Accept)
 
 	// case 2: length is small
-	reqCandidate.LastLogIndex = 3
-	reqCandidate.LastLogTerm = 4
-	assert.Nil(t, s1.OnReceiveRequestVoteRPC(reqCandidate, &res))
+	assert.Nil(t, s1.OnReceiveRequestVoteRPC(newTestVoteReq(5, 3, 4), &res))
 	assert.False(t, res.Accept)
 
 	// case 3: good enough
-	reqCandidate.LastLogIndex = 4
-	reqCandidate.LastLogTerm = 4
-	assert.Nil(t, s1.OnReceiveRequestVoteRPC(reqCandidate, &res))
+	assert.Nil(t, s1.OnReceiveRequestVoteRPC(newTestVoteReq(5, 4, 4), &res))
 	assert.True(t, res.Accept)
-	assert.True(t, s1.ServerInfo.LastVotedTerm == reqCandidate.NextTerm)
 
 	// case 4: term is too old
-	reqCandidate.LastLogIndex = 4
-	reqCandidate.LastLogTerm = 4
-	reqCandidate.NextTerm = 3
-	assert.Nil(t, s1.OnReceiveRequestVoteRPC(reqCandidate, &res))
+	assert.Nil(t, s1.OnReceiveRequestVoteRPC(newTestVoteReq(3, 4, 4), &res))
 	assert.False(t, res.Accept)
 
 	// case 5: already voted this
-	s1.ServerInfo.LastVotedServerId = clusters[2].ServerId
-	reqCandidate.NextTerm = 5
-	s1.ServerInfo.LastVotedTerm = 5
-	assert.Nil(t, s1.OnReceiveRequestVoteRPC(reqCandidate, &res))
+	voteFor(s1, clusters[2].ServerId)
+	assert.Nil(t, s1.OnReceiveRequestVoteRPC(newTestVoteReq(5, 3, 4), &res))
 	assert.True(t, res.Accept)
 
 	// case 6: already voted other
-	s1.ServerInfo.LastVotedServerId = 100
-	s1.ServerInfo.LastVotedTerm = 5
-	assert.Nil(t, s1.OnReceiveRequestVoteRPC(reqCandidate, &res))
+	voteFor(s1, 100)
+	assert.Nil(t, s1.OnReceiveRequestVoteRPC(newTestVoteReq(5, 3, 4), &res))
 	assert.False(t, res.Accept)
+}
 
+func TestRaftServer_AppendLog(t *testing.T) {
+	s1Leader := NewRaftServerWithEnv(core.NewServerConf(clusters[0], leader, clusters), envNoTimer)
+	s2 := NewRaftServerWithEnv(core.NewServerConf(clusters[1], leader, clusters), envNoTimer)
+	s3 := NewRaftServerWithEnv(core.NewServerConf(clusters[2], leader, clusters), envNoTimer)
+	s4 := NewRaftServerWithEnv(core.NewServerConf(clusters[3], leader, clusters), envNoTimer)
+	s5 := NewRaftServerWithEnv(core.NewServerConf(clusters[4], leader, clusters), envNoTimer)
+	go s1Leader.Start()
+	go s2.Start()
+	go s3.Start()
+	go s4.Start()
+	go s5.Start()
+	waitAfterStart()
+
+	val, err := s1Leader.ReplicateLog(newTestCmd())
+	assert.Nil(t, err)
+	assert.Equal(t, []byte("test"), val)
+	// make sure followers get this log
 }

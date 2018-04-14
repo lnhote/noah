@@ -11,87 +11,86 @@ const (
 	RoleLeader    = 2
 )
 
-type FollowerState struct {
-	// Addr is follower's ip
-	Node *ServerInfo
+// PersistentState is updated on stable storage before responding to RPC
+type PersistentState struct {
+	// latest term server has seen (initialized to 0 on first boot, increases monotonically)
+	Term int
 
-	// LastIndex is the last received log index for the server
-	LastIndex int
-
-	// LastTerm is the term for last received log
-	LastTerm int
-
-	// NextIndex is the next log index for the server
-	NextIndex int
-
-	// CommitIndex is the committed log index
-	CommitIndex int
-
-	// MatchedIndex is the last matched index for the follower
-	MatchedIndex int
-
-	LastRpcTime time.Time
-}
-
-type ServerState struct {
-	// for all
-	CommitIndex int
-	NextIndex   int
-	Term        int
-	Role        int
-
-	// for follower
-	LeaderId int
-
-	// for leader election
-	LastVotedTerm     int
+	// candidateId that received vote in current term (or 0 if none)
 	LastVotedServerId int
 
-	// for leader
-	Followers map[int]*FollowerState
+	// log entries; each entry contains command for state machine,
+	// and term when entry was received by leader (first index is 1)
+	Logs *LogRepo
 }
 
-func NewServerState() *ServerState {
-	state := &ServerState{}
-	state.Followers = map[int]*FollowerState{}
-	return state
+// VolatileState can lost, store on all servers
+type VolatileState struct {
+	// index of highest log entry known to be committed (initialized to 0, increases monotonically)
+	CommitIndex int
+
+	// index of highest log entry applied to state machine
+	// initialized to 0, increases monotonically
+	LastApplied int
 }
 
-// GetLastIndex return -1 if not exist
-func (ss *ServerState) GetLastIndex() int {
-	return ss.NextIndex - 1
+// VolatileLeaderState can lost, store on leader server
+type VolatileLeaderState struct {
+	// for each server, index of the next log entry
+	// to send to that server (initialized to leader
+	// last log index + 1)
+	NextIndex map[int]int
+
+	// for each server, index of highest log entry known to be replicated on server
+	// (initialized to 0, increases monotonically)
+	MatchIndex map[int]int
+
+	LastRpcTime map[int]time.Time
 }
 
-func (ss *ServerState) IsAcceptedByMajority(index int) bool {
-	counts := 1
-	total := len(ss.Followers) + 1
-	for _, follower := range ss.Followers {
-		if follower.LastIndex >= index {
-			counts = counts + 1
-		}
+type LogRepo struct {
+	// logs: logindex => log struct, start from 1
+	logs      map[int]*LogEntry
+	lastIndex int
+}
+
+func NewLogRepo() *LogRepo {
+	return &LogRepo{logs: map[int]*LogEntry{}, lastIndex: 0}
+}
+
+func (l *LogRepo) GetLastIndex() int {
+	return l.lastIndex
+}
+
+func (l *LogRepo) GetNextIndex() int {
+	return l.GetLastIndex() + 1
+}
+
+func (l *LogRepo) GetLastTerm() int {
+	if log, err := l.GetLogEntry(l.lastIndex); err == nil {
+		return log.Term
+	} else {
+		return 0
 	}
-	return counts*2 > total
 }
 
-type LogList struct {
-	// logs: logindex => log struct
-	logs map[int]*LogEntry
-}
-
-func NewLogList() *LogList {
-	logList := &LogList{logs: map[int]*LogEntry{}}
-	return logList
-}
-
-func (ll *LogList) GetLogTerm(index int) (int, error) {
-	entry, err := ll.GetLogEntry(index)
+func (l *LogRepo) GetLogTerm(index int) (int, error) {
+	entry, err := l.GetLogEntry(index)
 	if err != nil {
 		return 0, err
 	}
 	return entry.Term, nil
 }
 
-func (ll *LogList) GetLogEntry(index int) (*LogEntry, error) {
+func (l *LogRepo) GetLogList(start int) []*LogEntry {
+	newLogs := []*LogEntry{}
+	for i := start; i <= l.GetLastIndex(); i++ {
+		newLogs = append(newLogs, l.logs[i])
+	}
+	return newLogs
+}
+
+func (ll *LogRepo) GetLogEntry(index int) (*LogEntry, error) {
 	if entry, ok := ll.logs[index]; ok {
 		return entry, nil
 	} else {
@@ -99,6 +98,13 @@ func (ll *LogList) GetLogEntry(index int) (*LogEntry, error) {
 	}
 }
 
-func (ll *LogList) SaveLogEntry(log *LogEntry) {
+func (ll *LogRepo) SaveLogEntry(log *LogEntry) {
 	ll.logs[log.Index] = log
+	if log.Index > ll.lastIndex {
+		ll.lastIndex = log.Index
+	}
+}
+
+func (ll *LogRepo) Delete(index int) {
+	delete(ll.logs, index)
 }

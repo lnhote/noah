@@ -3,6 +3,8 @@ package core
 import (
 	"fmt"
 	"net"
+
+	"github.com/lnhote/noah/core/errmsg"
 )
 
 const (
@@ -16,14 +18,14 @@ type Command struct {
 	Value       []byte
 }
 
-func (c Command) ToLog() (string, error) {
+func (c Command) String() string {
 	switch c.CommandType {
 	case CmdGet:
-		return fmt.Sprintf("GET|%s", c.Key), nil
+		return fmt.Sprintf("Get|%s", c.Key)
 	case CmdSet:
-		return fmt.Sprintf("SET|%s|%s", c.Key, c.Value), nil
+		return fmt.Sprintf("Set|%s|%s", c.Key, c.Value)
 	default:
-		return "", fmt.Errorf("NoSuchCommand||%d", c.CommandType)
+		return errmsg.NoSuchCommand.Error()
 	}
 }
 
@@ -34,8 +36,10 @@ type LogEntry struct {
 }
 
 type ClientResponse struct {
-	Code int
-	Data map[string]interface{}
+	Errcode    int
+	Errmsg     string
+	ServerAddr *net.TCPAddr
+	Data       interface{}
 }
 
 type ServerInfo struct {
@@ -75,15 +79,28 @@ func NewServerInfo(id int, role int, serverAddr string) *ServerInfo {
 type ServerConfig struct {
 	Info            *ServerInfo
 	LeaderInfo      *ServerInfo
-	ClusterAddrList []*ServerInfo
+	ClusterAddrList map[int]*ServerInfo
+
+	clusterMapByAddr map[string]*ServerInfo
+}
+
+func (sc *ServerConfig) FindIdByAddr(addr string) (int, error) {
+	if server, ok := sc.clusterMapByAddr[addr]; ok {
+		return server.ServerId, nil
+	} else {
+		return 0, errmsg.ServerNotFound
+	}
 }
 
 func NewServerConf(info *ServerInfo, leader *ServerInfo, clusterAddrs []*ServerInfo) *ServerConfig {
 	serverConf := &ServerConfig{}
 	serverConf.Info = info
 	serverConf.LeaderInfo = leader
-	for _, cluster := range clusterAddrs {
-		serverConf.ClusterAddrList = append(serverConf.ClusterAddrList, cluster)
+	serverConf.ClusterAddrList = make(map[int]*ServerInfo, len(clusterAddrs))
+	serverConf.clusterMapByAddr = make(map[string]*ServerInfo, len(clusterAddrs))
+	for _, server := range clusterAddrs {
+		serverConf.ClusterAddrList[server.ServerId] = server
+		serverConf.clusterMapByAddr[server.ServerAddr.String()] = server
 	}
 	return serverConf
 }

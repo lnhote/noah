@@ -1,9 +1,7 @@
 package server
 
 import (
-	"errors"
 	"fmt"
-	"math"
 	"net"
 	"net/rpc"
 	"os"
@@ -13,7 +11,8 @@ import (
 	"time"
 
 	"github.com/lnhote/noah/core"
-	"github.com/lnhote/noah/core/errorcode"
+	"github.com/lnhote/noah/core/errmsg"
+	"github.com/lnhote/noah/core/errno"
 	"github.com/lnhote/noah/server/raftrpc"
 	"github.com/lnhote/noah/server/store"
 	"github.com/v2pro/plz/countlog"
@@ -22,13 +21,55 @@ import (
 const (
 	SUCCESS = 1
 	FAIL    = 2
+	TIMEOUT = 3
 )
+
+// Rules for Servers
+
+// All Servers:
+//• If commitIndex > lastApplied: increment lastApplied, apply
+//log[lastApplied] to state machine (§5.3)
+//• If RPC request or response contains term T > currentTerm:
+//set currentTerm = T, convert to follower (§5.1)
+
+//Followers (§5.2):
+//• Respond to RPCs from candidates and leaders
+//• If election timeout elapses without receiving AppendEntries
+//RPC from current leader or granting vote to candidate:
+//convert to candidate
+
+//Candidates (§5.2):
+//• On conversion to candidate, start election:
+//• Increment currentTerm
+//• Vote for self
+//• Reset election timer
+//• Send RequestVote RPCs to all other servers
+//• If votes received from majority of servers: become leader
+//• If AppendEntries RPC received from new leader: convert to
+//follower
+//• If election timeout elapses: start new election
+
+//Leaders:
+//• Upon election: send initial empty AppendEntries RPCs
+//(heartbeat) to each server; repeat during idle periods to
+//prevent election timeouts (§5.2)
+//• If command received from client: append entry to local log,
+//respond after entry applied to state machine (§5.3)
+//• If last log index ≥ nextIndex for a follower: send
+//AppendEntries RPC with log entries starting at nextIndex
+//• If successful: update nextIndex and matchIndex for
+//follower (§5.3)
+//• If AppendEntries fails because of log inconsistency:
+//decrement nextIndex and retry (§5.3)
+//• If there exists an N such that N > commitIndex, a majority
+//of matchIndex[i] ≥ N, and log[N].term == currentTerm:
+//set commitIndex = N (§5.3, §5.4).
 
 type RaftServer struct {
 	ServerConf   *core.ServerConfig
-	ServerInfo   *core.ServerState
-	FollowerInfo *core.FollowerState
-	Logs         *core.LogList
+	stableInfo   *core.PersistentState
+	volatileInfo *core.VolatileState
+	leaderState  *core.VolatileLeaderState
 
 	leaderHeartBeatTimer *eventTimer
 	leaderElectionTimer  *eventTimer
@@ -49,17 +90,23 @@ func NewRaftServer(conf *core.ServerConfig) *RaftServer {
 func NewRaftServerWithEnv(conf *core.ServerConfig, env *Env) *RaftServer {
 	newServer := &RaftServer{}
 	newServer.ServerConf = conf
-	newServer.Logs = core.NewLogList()
-	newServer.ServerInfo = core.NewServerState()
+	newServer.stableInfo = &core.PersistentState{0, 0, core.NewLogRepo()}
+	newServer.volatileInfo = &core.VolatileState{}
+	newServer.leaderState = &core.VolatileLeaderState{}
 	newServer.wgHandleCommand = &sync.WaitGroup{}
 	newServer.RandomRangeInMs = env.RandomRangeInMs
 	newServer.leaderElectionTimer = NewEventTimer(newServer.LeaderElectionEventHandler, env.LeaderElectionDurationInMs)
 	newServer.leaderHeartBeatTimer = NewEventTimer(newServer.HeartbeatEventHandler, env.HeartBeatDurationInMs)
+	newServer.leaderState.NextIndex = map[int]int{}
+	newServer.leaderState.MatchIndex = map[int]int{}
+	newServer.leaderState.LastRpcTime = map[int]time.Time{}
 	for _, addr := range newServer.ServerConf.ClusterAddrList {
 		if newServer.ServerConf.Info.ServerId == addr.ServerId {
 			continue
 		}
-		newServer.ServerInfo.Followers[addr.ServerId] = &core.FollowerState{Node: addr}
+		newServer.leaderState.NextIndex[addr.ServerId] = 1
+		newServer.leaderState.MatchIndex[addr.ServerId] = 0
+		newServer.leaderState.LastRpcTime[addr.ServerId] = time.Now()
 	}
 	newServer.clientPool = raftrpc.NewClientPool()
 	newServer.sigs = make(chan os.Signal, 1)
@@ -134,7 +181,7 @@ func (s *RaftServer) HeartbeatEventHandler() {
 		if s.ServerConf.Info.ServerId == node.ServerId {
 			continue
 		}
-		lastTime := s.ServerInfo.Followers[node.ServerId].LastRpcTime
+		lastTime := s.leaderState.LastRpcTime[node.ServerId]
 		if time.Now().Sub(lastTime) < time.Duration(s.leaderHeartBeatTimer.DurationInMs)/2*time.Millisecond {
 			// Don't send heart beat if we already sent any log recently
 			countlog.Info(fmt.Sprintf("No need to send heartbeat to node %s: lastTime = %v", node.String(), lastTime))
@@ -142,7 +189,7 @@ func (s *RaftServer) HeartbeatEventHandler() {
 		}
 		req := &raftrpc.AppendRPCRequest{}
 		req.LogEntries = []*core.LogEntry{}
-		req.Term = s.ServerInfo.Term
+		req.Term = s.stableInfo.Term
 		req.LeaderNode = s.ServerConf.Info
 		go func(r *raftrpc.AppendRPCRequest, followerAddr *net.TCPAddr) {
 			s.sendHeartbeatToServer(r, followerAddr)
@@ -163,8 +210,9 @@ func (s *RaftServer) sendHeartbeatToServer(req *raftrpc.AppendRPCRequest, follow
 		countlog.Error("SendAppendEntryRPC Fail", "followerAddr", followerAddr.String(), "error", err.Error())
 		return
 	}
-	countlog.Info(fmt.Sprintf("HeartbeatResponse from %s", resp.Node))
-	s.ServerInfo.Followers[resp.Node.ServerId].LastRpcTime = resp.Time
+	countlog.Info(fmt.Sprintf("HeartbeatResponse from %s", followerAddr.String()))
+	serverId, _ := s.ServerConf.FindIdByAddr(followerAddr.String())
+	s.leaderState.LastRpcTime[serverId] = time.Now()
 }
 
 // LeaderElectionEventHandler is the event triggered by leaderElectionTimer
@@ -174,23 +222,23 @@ func (s *RaftServer) LeaderElectionEventHandler() {
 		return
 	}
 	countlog.Info(fmt.Sprintf("%s starts leader election for term %d, old leader %s is dead",
-		s.String(), s.ServerInfo.Term+1, s.ServerConf.LeaderInfo.String()))
+		s.String(), s.stableInfo.Term+1, s.ServerConf.LeaderInfo.String()))
 	if s.ServerConf.Info.Role == core.RoleFollower {
 		becomeCandidate(s)
 	}
 	for {
-		if s.ServerInfo.Role == core.RoleCandidate {
+		if s.ServerConf.Info.Role == core.RoleCandidate {
 			voteResult := s.collectVotes()
 			if voteResult.IsEnough() {
 				becomeLeader(s)
 				countlog.Info(fmt.Sprintf("%s becomes new leader", s))
 			} else {
 				countlog.Info(fmt.Sprintf("%s votes %s not enough", s.String(), voteResult.String()))
-				s.ServerInfo.LastVotedTerm = s.ServerInfo.LastVotedTerm - 1
+				s.stableInfo.LastVotedServerId = 0
 				waitForNextRoundElection(s)
 			}
 		}
-		if s.ServerInfo.Role != core.RoleCandidate {
+		if s.ServerConf.Info.Role != core.RoleCandidate {
 			// exit loop when:
 			// 1. role becomes follower when receiving append log rpc
 			// 2. role becomes leader when it win the election
@@ -205,12 +253,11 @@ func (s *RaftServer) LeaderElectionEventHandler() {
 // collectVotes counts the accepted counts and total counts
 func (s *RaftServer) collectVotes() *voteCounter {
 	countlog.Info(fmt.Sprintf("%s collectVotes", s))
-	nextTerm := s.ServerInfo.Term + 1
+	nextTerm := s.stableInfo.Term + 1
 	req := &raftrpc.RequestVoteRequest{}
 	req.Candidate = s.ServerConf.Info
 	req.NextTerm = nextTerm
-	s.ServerInfo.LastVotedTerm = nextTerm
-	s.ServerInfo.LastVotedServerId = s.ServerConf.Info.ServerId
+	s.stableInfo.LastVotedServerId = s.ServerConf.Info.ServerId
 	voteResult := NewVoteCounter(len(s.ServerConf.ClusterAddrList))
 	voteResult.AddAccept()
 	for _, node := range s.ServerConf.ClusterAddrList {
@@ -239,7 +286,8 @@ func (s *RaftServer) sendRequestVoteToServer(node *core.ServerInfo, req *raftrpc
 	var resp raftrpc.RequestVoteResponse
 	go func() {
 		if err = client.Call("RaftService.OnReceiveRequestVoteRPC", req, &resp); err != nil {
-			countlog.Error(fmt.Sprintf("%s RaftService.OnReceiveRequestVoteRPC_fail from %s: %s", s.String(), node.String(), err.Error()))
+			countlog.Error(fmt.Sprintf("%s RaftService.OnReceiveRequestVoteRPC_fail from %s: %s",
+				s.String(), node.String(), err.Error()))
 			done <- FAIL
 			return
 		}
@@ -264,82 +312,113 @@ func (s *RaftServer) sendRequestVoteToServer(node *core.ServerInfo, req *raftrpc
 	return
 }
 
+// Receiver implementation:
+// 1. Reply false if term < currentTerm (§5.1)
+// 2. Reply false if log doesn’t contain an entry at prevLogIndex
+// whose term matches prevLogTerm (§5.3)
+// 3. If an existing entry conflicts with a new one (same index
+// but different terms), delete the existing entry and all that
+// follow it (§5.3)
+// 4. Append any new entries not already in the log
+// 5. If leaderCommit > commitIndex, set commitIndex =
+// min(leaderCommit, index of last new entry)
 func (s *RaftServer) OnReceiveAppendRPC(req *raftrpc.AppendRPCRequest, resp *raftrpc.AppendRPCResponse) error {
 	countlog.Info(fmt.Sprintf("%s OnReceiveAppendRPC from %s", s.ServerConf.Info, req.LeaderNode.ServerAddr))
+	// this leader is too old, not valid
+	if s.stableInfo.Term > req.Term {
+		resp.Success = false
+		resp.Term = s.stableInfo.Term
+		return nil
+	} else {
+		updateTerm(s, req.Term)
+		resp.Term = s.stableInfo.Term
+	}
 	// 1. During leader election, if the dead leader revived, candidate has to become follower
 	// 2. After leader election, When the dead leader comes to live after a new leader is elected,
 	// leader has to become follower
 	becomeFollower(s)
+
+	// this is a valid leader, sync term/commitIndex/leaderId
+	if req.CommitIndex > s.volatileInfo.CommitIndex {
+		s.volatileInfo.CommitIndex = req.CommitIndex
+	}
+	if s.stableInfo.Logs.GetLastIndex() <= req.CommitIndex {
+		s.volatileInfo.CommitIndex = s.stableInfo.Logs.GetLastIndex()
+	}
 	s.ServerConf.LeaderInfo = req.LeaderNode
+	resetVote(s)
+
 	// leader is alive, so reset the timer
 	s.leaderElectionTimer.Reset()
 
-	s.ServerInfo.Term = req.Term
-	s.ServerInfo.CommitIndex = req.CommitIndex
-	resp.Node = s.ServerConf.Info
-	resp.Time = time.Now()
+	// this is a heart beat
+	if len(req.LogEntries) == 0 {
+		resp.Success = true
+		return nil
+	}
 	// check log before accept new logs from leader
-	term, err := s.Logs.GetLogTerm(req.PrevLogIndex)
-	if err != nil && req.NextIndex != req.PrevLogIndex {
-		countlog.Info("Leader.PrevLogIndex does not exist here", "index", req.PrevLogIndex)
-		resp.UnmatchLogIndex = req.PrevLogIndex
-		return nil
+	if req.PrevLogIndex > 0 {
+		if prevLogTerm, err := s.stableInfo.Logs.GetLogTerm(req.PrevLogIndex); err != nil {
+			countlog.Info("Leader.PrevLogIndex does not exist here", "index", req.PrevLogIndex)
+			resp.Success = false
+			return nil
+		} else {
+			if prevLogTerm != req.PrevLogTerm {
+				resp.Success = false
+				return nil
+			} else {
+				resp.Success = true
+			}
+		}
+	} else {
+		resp.Success = true
 	}
-	if term != req.PrevLogTerm {
-		resp.UnmatchLogIndex = req.PrevLogIndex
-		return nil
+	// prevlog matches leader's, replicate the new log entires
+	lastReplicatedLogIndex := req.LogEntries[0].Index
+	for i := 0; i < len(req.LogEntries); i++ {
+		saveLogEntry(s, req.LogEntries[i])
+		lastReplicatedLogIndex = lastReplicatedLogIndex + 1
 	}
-	startLogIndex := req.PrevLogIndex + 1
-	for _, log := range req.LogEntries {
-		store.SaveLogEntryAtIndex(log, startLogIndex)
-		startLogIndex++
+	// if follower contains more logs than leader, delete them
+	for {
+		if _, err := s.stableInfo.Logs.GetLogEntry(lastReplicatedLogIndex); err != nil {
+			// index does not exist in follower
+			break
+		} else {
+			s.stableInfo.Logs.Delete(lastReplicatedLogIndex)
+		}
+		lastReplicatedLogIndex++
 	}
-	resp.UnmatchLogIndex = math.MaxInt32
-	resp.LastLogIndex = startLogIndex - 1
 	return nil
 }
 
 // OnReceiveRequestVoteRPC will make the election decision: accept or reject
+// 1. Reply false if term < currentTerm (§5.1)
+// 2. If votedFor is null or candidateId,
+// and candidate’s log is at least as up-to-date as receiver’s log, grant vote (§5.2, §5.4)
 func (s *RaftServer) OnReceiveRequestVoteRPC(req *raftrpc.RequestVoteRequest, resp *raftrpc.RequestVoteResponse) error {
 	countlog.Info(fmt.Sprintf("%s OnReceiveRequestVoteRPC from %s", s, req.Candidate))
-	if s.ServerInfo.LastVotedTerm > req.NextTerm {
+	resp.Term = s.stableInfo.Term
+	// the candidate is too old
+	if s.stableInfo.Term >= req.NextTerm {
 		resp.Accept = false
 		return nil
 	}
-	// TODO need to reset after some timeout incase it is for the same around
-	if s.ServerInfo.LastVotedTerm == req.NextTerm {
-		if req.NextTerm == 0 {
+	if s.stableInfo.LastVotedServerId == 0 {
+		resp.Accept = shouldVote(req, s)
+		if resp.Accept {
+			s.stableInfo.LastVotedServerId = req.Candidate.ServerId
+		}
+	} else {
+		// already voted for other candidate
+		if s.stableInfo.LastVotedServerId != req.Candidate.ServerId {
+			resp.Accept = false
+			return nil
+		} else {
+			// TODO voted for this candidate before, should I check the log again
 			resp.Accept = true
 			return nil
 		}
-		if s.ServerInfo.LastVotedServerId == req.Candidate.ServerId {
-			resp.Accept = true
-		} else {
-			resp.Accept = false
-		}
-		return nil
-	}
-	lastIndex := s.ServerInfo.GetLastIndex()
-	if lastIndex < 0 {
-		resp.Accept = true
-		return nil
-	}
-	lastTerm, err := s.Logs.GetLogTerm(lastIndex)
-	if err != nil {
-		return err
-	}
-	if req.LastLogTerm > lastTerm {
-		resp.Accept = true
-	} else if req.LastLogTerm < lastTerm {
-		resp.Accept = false
-	} else if req.LastLogIndex >= lastIndex {
-		resp.Accept = true
-	} else {
-		resp.Accept = false
-	}
-	if resp.Accept {
-		s.ServerInfo.LastVotedTerm = req.NextTerm
-		s.ServerInfo.LastVotedServerId = req.Candidate.ServerId
 	}
 	return nil
 }
@@ -347,130 +426,163 @@ func (s *RaftServer) OnReceiveRequestVoteRPC(req *raftrpc.RequestVoteRequest, re
 func (s *RaftServer) Get(cmd *core.Command, resp *core.ClientResponse) error {
 	countlog.Info("Get", "cmd", cmd)
 	if cmd == nil {
-		err := errors.New("EmptyCommand")
-		countlog.Error("event!EmptyCommand", "err", err.Error())
-		return err
+		resp.Errcode = errno.MissingParam
+		countlog.Error(fmt.Sprintf("EmptyCommand"))
+		return nil
 	}
 	if s.ServerConf.Info.Role != core.RoleLeader {
-		data := map[string]interface{}{
-			"leader_address": s.ServerConf.Info.ServerAddr,
-		}
-		resp.Code = errorcode.NotLeader
-		resp.Data = data
+		resp.ServerAddr = s.ServerConf.Info.ServerAddr
+		resp.Errcode = errno.NotLeader
 		return nil
 	}
 	switch cmd.CommandType {
 	case core.CmdGet:
 		val, err := store.DBGet(cmd.Key)
 		if err != nil {
+			countlog.Error("DBGet failed", "key", cmd.Key, "error", err)
+			resp.Errcode = errno.InternalServerError
 			return err
 		}
-		data := map[string]interface{}{
-			"value": val,
-		}
-		resp.Code = errorcode.Success
-		resp.Data = data
+		resp.Errcode = errno.Success
+		resp.Data = val
 	default:
-		return fmt.Errorf("UnkownCommandType(%d)", cmd.CommandType)
+		resp.Errcode = errno.ValueNotAccepcted
+		countlog.Error(fmt.Sprintf("UnkownCommandType(%d)", cmd.CommandType))
 	}
 	return nil
 }
 
 func (s *RaftServer) Set(cmd *core.Command, resp *core.ClientResponse) error {
 	countlog.Info("Set", "cmd", cmd)
-	*resp = core.ClientResponse{}
 	if cmd == nil {
-		err := errors.New("EmptyCommand")
-		countlog.Error("event!EmptyCommand", "err", err.Error())
-		return err
-	}
-	if s.ServerConf.Info.Role != core.RoleLeader {
-		data := map[string]interface{}{
-			"leader_address": s.ServerInfo.LeaderId,
-		}
-		resp.Code = errorcode.NotLeader
-		resp.Data = data
+		resp.Errcode = errno.MissingParam
+		resp.Errmsg = "EmptyCommand"
+		countlog.Error("EmptyCommand")
 		return nil
 	}
-	val, err := s.AppendLog(cmd)
-	if err != nil {
-		return err
+	if s.ServerConf.Info.Role != core.RoleLeader {
+		resp.ServerAddr = s.ServerConf.Info.ServerAddr
+		resp.Errcode = errno.NotLeader
+		return nil
 	}
-	data := map[string]interface{}{
-		"value": val,
-	}
-	resp.Code = errorcode.Success
-	resp.Data = data
-	return nil
-}
-
-// AppendLog is the main flow
-func (s *RaftServer) AppendLog(cmd *core.Command) ([]byte, error) {
-	countlog.Info("AppendLog", "cmd", cmd)
-	newLog := &core.LogEntry{cmd, s.ServerInfo.NextIndex, s.ServerInfo.Term}
-	logIndex := store.SaveLogEntry(newLog)
-	s.wgHandleCommand.Add(len(s.ServerInfo.Followers))
-	for _, follower := range s.ServerInfo.Followers {
-		req := &raftrpc.AppendRPCRequest{}
-		req.LeaderNode = s.ServerConf.Info
-		req.Term = s.ServerInfo.Term
-		req.PrevLogIndex = s.ServerInfo.NextIndex - 1
-		req.PrevLogTerm, _ = s.Logs.GetLogTerm(req.PrevLogIndex)
-		req.NextIndex = s.ServerInfo.NextIndex
-		req.CommitIndex = s.ServerInfo.CommitIndex
-		req.LogEntries = append(req.LogEntries, newLog)
-		go s.replicateLogToServer(follower.Node.ServerAddr, req)
-	}
-	s.wgHandleCommand.Wait()
-	if s.ServerInfo.IsAcceptedByMajority(logIndex) {
-		newCommitIndex := logIndex
-		lastCommitIndex := s.ServerInfo.CommitIndex
-		val, err := store.ExecuteLogAndUpdateStateMachine(lastCommitIndex+1, newCommitIndex)
+	switch cmd.CommandType {
+	case core.CmdSet:
+		val, err := s.ReplicateLog(cmd)
 		if err != nil {
-			return nil, err
+			countlog.Error("DBSet -> ReplicateLog failed", "key", cmd.Key, "error", err)
+			resp.Errmsg = err.Error()
+			resp.Errcode = errno.ReplicateLogFail
+			return nil
 		}
-		s.ServerInfo.CommitIndex = newCommitIndex
-		return val, nil
-	} else {
-		return nil, fmt.Errorf("ValueNotAccepcted")
+		resp.Errcode = errno.Success
+		resp.Data = val
+	default:
+		resp.Errcode = errno.ValueNotAccepcted
+		countlog.Error(fmt.Sprintf("UnkownCommandType(%d)", cmd.CommandType))
 	}
-}
-
-func (s *RaftServer) AppendLogMock(cmd *core.Command) (interface{}, error) {
-	if cmd.CommandType == core.CmdGet {
-		return "5", nil
-	}
-	if cmd.CommandType == core.CmdSet {
-		return "success", nil
-	}
-	return nil, errors.New("UnknownCmd")
-}
-
-func (s *RaftServer) replicateLogToServer(followerAddr *net.TCPAddr, req *raftrpc.AppendRPCRequest) error {
-	defer s.wgHandleCommand.Done()
-	resp, err := raftrpc.SendAppendEntryRPC(followerAddr, req)
-	if err != nil {
-		countlog.Error("SendAppendEntryRPC Fail", "followerAddr", followerAddr.String(), "error", err)
-		return err
-	}
-	for resp.UnmatchLogIndex <= req.PrevLogIndex {
-		req.PrevLogIndex = resp.UnmatchLogIndex - 1
-		req.PrevLogTerm, _ = s.Logs.GetLogTerm(req.PrevLogIndex)
-		logs := []*core.LogEntry{}
-		for i := req.PrevLogIndex + 1; i < req.NextIndex; i++ {
-			log, _ := s.Logs.GetLogEntry(i)
-			logs = append(logs, log)
-		}
-		req.LogEntries = logs
-		if resp, err = raftrpc.SendAppendEntryRPC(followerAddr, req); err != nil {
-			countlog.Error("SendAppendEntryRPC Fail", "followerAddr", followerAddr.String(), "error", err)
-			return err
-		}
-	}
-	s.ServerInfo.Followers[resp.Node.ServerId].LastIndex = resp.LastLogIndex
-	s.ServerInfo.Followers[resp.Node.ServerId].LastRpcTime = resp.Time
-	s.ServerInfo.Followers[resp.Node.ServerId].MatchedIndex = resp.LastLogIndex
 	return nil
+}
+
+type replcateResult struct {
+	*raftrpc.AppendRPCResponse
+	followerId   int
+	returnStatus int
+}
+
+// ReplicateLog replicates logs to follower
+func (s *RaftServer) ReplicateLog(cmd *core.Command) ([]byte, error) {
+	prevLogIndex := getLastLogIndex(s)
+	appendLogEntry(s, cmd)
+	countlog.Info("ReplicateLog to follwers", "cmd", cmd)
+	appendRPCMsg := make(chan replcateResult, len(s.ServerConf.ClusterAddrList)-1)
+	for _, server := range s.ServerConf.ClusterAddrList {
+		if server.ServerId == s.ServerConf.Info.ServerId {
+			continue
+		}
+		req := buildAppendRPCRequest(s, server, prevLogIndex)
+		s.wgHandleCommand.Add(1)
+		go s.replicateLogToServer(server.ServerAddr, req, appendRPCMsg)
+	}
+	success := 1
+	go func(appendRPCMsg chan replcateResult) {
+		for res := range appendRPCMsg {
+			if res.returnStatus == SUCCESS && res.Success {
+				s.leaderState.NextIndex[res.followerId] = s.stableInfo.Logs.GetNextIndex()
+				s.leaderState.MatchIndex[res.followerId] = s.stableInfo.Logs.GetLastIndex()
+				s.leaderState.LastRpcTime[res.followerId] = time.Now()
+				success += 1
+			}
+		}
+	}(appendRPCMsg)
+	s.wgHandleCommand.Wait()
+	close(appendRPCMsg)
+
+	if success*2 > len(s.ServerConf.ClusterAddrList) {
+		// replicate success
+		s.volatileInfo.CommitIndex = s.stableInfo.Logs.GetLastIndex()
+		s.applyLogs()
+		return store.DBGet(cmd.Key)
+	} else {
+		return nil, errmsg.ReplicateLogFail
+	}
+}
+
+func (s *RaftServer) replicateLogToServer(followerAddr *net.TCPAddr, req *raftrpc.AppendRPCRequest, res chan replcateResult) error {
+	countlog.Debug(fmt.Sprintf("%s replicateLogToServer_start %s", s, followerAddr.String()))
+	defer s.wgHandleCommand.Done()
+	var done chan int
+	done = make(chan int, 1)
+	var resp raftrpc.AppendRPCResponse
+	followerId, _ := s.ServerConf.FindIdByAddr(followerAddr.String())
+	go func() {
+		client, err := s.clientPool.Get(followerAddr)
+		if err != nil {
+			countlog.Error("Connect Error", "error", err, "followerAddr", followerAddr.String())
+			done <- FAIL
+			return
+		}
+		if err = client.Call("RaftService.OnReceiveAppendRPC", req, &resp); err != nil {
+			countlog.Error(fmt.Sprintf("%s RaftService.OnReceiveAppendRPC_fail from %s: %s", followerAddr.String(), "error", err.Error()))
+			done <- FAIL
+			return
+		}
+		countlog.Debug(fmt.Sprintf("%s OnReceiveAppendRPC_success from %s", s.String(), followerAddr.String()))
+		if resp.Success == false {
+			// TODO need to decrease prevLogIndex and send again
+		}
+		done <- SUCCESS
+	}()
+	select {
+	case <-time.After(time.Millisecond * 1000):
+		countlog.Warn(fmt.Sprintf("%s OnReceiveRequestVoteRPC_timeout from %s", s, followerAddr.String()))
+		res <- replcateResult{nil, followerId, TIMEOUT}
+	case ret := <-done:
+		if ret == FAIL {
+			res <- replcateResult{nil, followerId, FAIL}
+		} else {
+			res <- replcateResult{&resp, followerId, SUCCESS}
+		}
+	}
+	return nil
+}
+
+// applyLogs execute logs from last applied index to last log index
+func (s *RaftServer) applyLogs() {
+	for i := s.volatileInfo.LastApplied + 1; i <= s.volatileInfo.CommitIndex; i++ {
+		countlog.Info(fmt.Sprintf("apply log %d", i))
+		if logToApply, err := s.stableInfo.Logs.GetLogEntry(i); err == nil {
+			if dbErr := store.DBSet(logToApply.Command.Key, logToApply.Command.Value); dbErr == nil {
+				countlog.Info(fmt.Sprintf("apply log %d %s success", i, logToApply.Command.String()))
+				s.volatileInfo.LastApplied++
+			} else {
+				countlog.Error(fmt.Sprintf("applyLogs fails to DBSet %s: %s", logToApply.Command, err.Error()))
+				break
+			}
+		} else {
+			countlog.Error(fmt.Sprintf("applyLogs fails to GetLogEntry %d: %s", i, err.Error()))
+			break
+		}
+	}
 }
 
 // handleSignal handles system signals
