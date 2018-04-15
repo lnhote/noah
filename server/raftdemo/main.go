@@ -17,7 +17,7 @@ var (
 
 	leader = clusters[0]
 
-	env = &server.Env{HeartBeatDurationInMs: 2000, LeaderElectionDurationInMs: 10000}
+	env = &core.Env{HeartBeatDurationInMs: 2000, LeaderElectionDurationInMs: 10000}
 )
 
 func init() {

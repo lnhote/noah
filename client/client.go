@@ -7,7 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/lnhote/noah/core"
+	"github.com/lnhote/noah/core/entity"
+	"github.com/lnhote/noah/core/raftrpc"
 )
 
 func main() {
@@ -28,7 +29,7 @@ func main() {
 		println("Dial failed:", err.Error())
 	}
 
-	var resp core.ClientResponse
+	var resp raftrpc.ClientResponse
 	cmd, err := parseCommand(args)
 	if err != nil {
 		fmt.Printf("Unkown Command: %s\n", args[0])
@@ -36,9 +37,9 @@ func main() {
 	}
 	var method string
 	switch cmd.CommandType {
-	case core.CmdGet:
+	case entity.CmdGet:
 		method = "NoahCommandServer.Get"
-	case core.CmdSet:
+	case entity.CmdSet:
 		method = "NoahCommandServer.Set"
 	default:
 		fmt.Printf("Unkown Command: %s\n", args[0])
@@ -53,7 +54,7 @@ func main() {
 	os.Exit(0)
 }
 
-func parseCommand(commandParts []string) (*core.Command, error) {
+func parseCommand(commandParts []string) (*entity.Command, error) {
 	if len(commandParts) == 0 {
 		return nil, fmt.Errorf("EmptyCommand")
 	}
@@ -63,13 +64,13 @@ func parseCommand(commandParts []string) (*core.Command, error) {
 		if len(commandParts) != 2 {
 			return nil, fmt.Errorf("WrongCommand||%s", rawCommandStr)
 		}
-		return &core.Command{CommandType: core.CmdGet, Key: commandParts[1]}, nil
+		return &entity.Command{CommandType: entity.CmdGet, Key: commandParts[1]}, nil
 	}
 	if cmd == "set" {
 		if len(commandParts) != 3 {
 			return nil, fmt.Errorf("WrongCommand||%s", rawCommandStr)
 		}
-		return &core.Command{CommandType: core.CmdSet, Key: commandParts[1], Value: []byte(commandParts[2])}, nil
+		return &entity.Command{CommandType: entity.CmdSet, Key: commandParts[1], Value: []byte(commandParts[2])}, nil
 	}
 	return nil, fmt.Errorf("CommandNotSupported||%s", rawCommandStr)
 }
