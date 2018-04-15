@@ -8,16 +8,16 @@ import (
 
 type ServerInfo struct {
 	ServerId   int
-	Role       int
+	Role       raftRole
 	ServerAddr *net.TCPAddr
 }
 
 func (s *ServerInfo) String() string {
 	return fmt.Sprintf("Server[%d](%s)<%s>", s.ServerId, s.ServerAddr.String(),
-		getRoleName(s.Role))
+		s.Role.String())
 }
 
-func NewServerInfo(id int, role int, serverAddr string) *ServerInfo {
+func NewServerInfo(id int, role raftRole, serverAddr string) *ServerInfo {
 	serverAddrObj, _ := net.ResolveTCPAddr("tcp", serverAddr)
 	serverInfo := &ServerInfo{
 		ServerId:   id,
@@ -28,10 +28,13 @@ func NewServerInfo(id int, role int, serverAddr string) *ServerInfo {
 }
 
 type ServerConfig struct {
-	Info            *ServerInfo
-	LeaderInfo      *ServerInfo
+	Info       *ServerInfo
+	LeaderInfo *ServerInfo
+
+	// id => info
 	ClusterAddrList map[int]*ServerInfo
 
+	// addr => info
 	clusterMapByAddr map[string]*ServerInfo
 }
 

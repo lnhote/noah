@@ -224,13 +224,13 @@ func (s *RaftServer) LeaderElectionEventHandler() {
 	}
 	countlog.Info(fmt.Sprintf("%s starts leader election for term %d, old leader %s is dead",
 		s.String(), s.stableInfo.Term+1, s.ServerConf.LeaderInfo.String()))
-	if s.ServerConf.Info.Role == core.RoleFollower {
-		becomeCandidate(s)
-	}
+
+	s.ServerConf.Info.Role.HandleMsg(core.LeaderElectionStartEvent)
 	for {
 		if s.ServerConf.Info.Role == core.RoleCandidate {
 			voteResult := s.collectVotes()
 			if voteResult.IsEnough() {
+				s.ServerConf.Info.Role.HandleMsg(core.LeaderElectionSuccessEvent)
 				becomeLeader(s)
 				countlog.Info(fmt.Sprintf("%s becomes new leader", s))
 			} else {
@@ -331,14 +331,16 @@ func (s *RaftServer) OnReceiveAppendRPC(req *raftrpc.AppendRPCRequest, resp *raf
 		resp.Success = false
 		resp.Term = s.stableInfo.Term
 		return nil
-	} else {
+	} else if s.stableInfo.Term < req.Term {
 		updateTerm(s, req.Term)
+		s.ServerConf.Info.Role.HandleMsg(core.DiscoverNewTermEvent)
 		resp.Term = s.stableInfo.Term
+	} else {
+		s.ServerConf.Info.Role.HandleMsg(core.ReceiveAppendRPCEvent)
 	}
 	// 1. During leader election, if the dead leader revived, candidate has to become follower
 	// 2. After leader election, When the dead leader comes to live after a new leader is elected,
 	// leader has to become follower
-	becomeFollower(s)
 
 	// this is a valid leader, sync term/commitIndex/leaderId
 	if req.CommitIndex > s.volatileInfo.CommitIndex {
@@ -508,11 +510,15 @@ func (s *RaftServer) ReplicateLog(cmd *entity.Command) ([]byte, error) {
 	success := 1
 	go func(appendRPCMsg chan replcateResult) {
 		for res := range appendRPCMsg {
-			if res.returnStatus == SUCCESS && res.Success {
-				s.leaderState.NextIndex[res.followerId] = s.stableInfo.Logs.GetNextIndex()
-				s.leaderState.MatchIndex[res.followerId] = s.stableInfo.Logs.GetLastIndex()
-				s.leaderState.LastRpcTime[res.followerId] = time.Now()
-				success += 1
+			if res.returnStatus == SUCCESS {
+				if res.Success {
+					s.leaderState.NextIndex[res.followerId] = s.stableInfo.Logs.GetNextIndex()
+					s.leaderState.MatchIndex[res.followerId] = s.stableInfo.Logs.GetLastIndex()
+					s.leaderState.LastRpcTime[res.followerId] = time.Now()
+					success += 1
+				} else {
+
+				}
 			}
 		}
 	}(appendRPCMsg)
@@ -536,6 +542,7 @@ func (s *RaftServer) replicateLogToServer(followerAddr *net.TCPAddr, req *raftrp
 	done = make(chan int, 1)
 	var resp raftrpc.AppendRPCResponse
 	followerId, _ := s.ServerConf.FindIdByAddr(followerAddr.String())
+	followerInfo := s.ServerConf.ClusterAddrList[followerId]
 	go func() {
 		client, err := s.clientPool.Get(followerAddr)
 		if err != nil {
@@ -543,14 +550,24 @@ func (s *RaftServer) replicateLogToServer(followerAddr *net.TCPAddr, req *raftrp
 			done <- FAIL
 			return
 		}
-		if err = client.Call("RaftService.OnReceiveAppendRPC", req, &resp); err != nil {
-			countlog.Error(fmt.Sprintf("%s RaftService.OnReceiveAppendRPC_fail from %s: %s", followerAddr.String(), "error", err.Error()))
-			done <- FAIL
-			return
-		}
-		countlog.Debug(fmt.Sprintf("%s OnReceiveAppendRPC_success from %s", s.String(), followerAddr.String()))
-		if resp.Success == false {
-			// TODO need to decrease prevLogIndex and send again
+		prevLogIndex := req.PrevLogIndex
+		for {
+			if err = client.Call("RaftService.OnReceiveAppendRPC", req, &resp); err != nil {
+				countlog.Error(fmt.Sprintf("%s RaftService.OnReceiveAppendRPC_fail from %s: %s", followerAddr.String(), "error", err.Error()))
+				done <- FAIL
+				return
+			}
+			countlog.Debug(fmt.Sprintf("%s OnReceiveAppendRPC_success from %s", s.String(), followerAddr.String()))
+			if resp.Success == false {
+				// need to decrease prevLogIndex and send again
+				prevLogIndex := prevLogIndex - 1
+				req = buildAppendRPCRequest(s, followerInfo, prevLogIndex)
+			} else {
+				break
+			}
+			if prevLogIndex < 0 {
+				break
+			}
 		}
 		done <- SUCCESS
 	}()

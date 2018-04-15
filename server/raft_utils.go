@@ -10,14 +10,6 @@ import (
 	"time"
 )
 
-func becomeFollower(s *RaftServer) {
-	s.ServerConf.Info.Role = core.RoleFollower
-}
-
-func becomeCandidate(s *RaftServer) {
-	s.ServerConf.Info.Role = core.RoleCandidate
-}
-
 // waitForNextRoundElection sleep random time duration and try again
 func waitForNextRoundElection(s *RaftServer) {
 	duration := rand.Intn(s.RandomRangeInMs)
@@ -26,7 +18,6 @@ func waitForNextRoundElection(s *RaftServer) {
 }
 
 func becomeLeader(s *RaftServer) {
-	s.ServerConf.Info.Role = core.RoleLeader
 	s.ServerConf.LeaderInfo = s.ServerConf.Info
 	s.stableInfo.Term = s.stableInfo.Term + 1
 
