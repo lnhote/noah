@@ -12,6 +12,18 @@ type ServerInfo struct {
 	ServerAddr *net.TCPAddr
 }
 
+type ymalClusterConfig struct {
+	ServerId int           `yaml:"server_id"`
+	LeaderId int           `yaml:"leader_id"`
+	Cluster  []*ymalConfig `yaml:"cluster"`
+}
+
+type ymalConfig struct {
+	ServerId   int      `yaml:"server_id"`
+	Role       raftRole `yaml:"role"`
+	ServerAddr string   `yaml:"server_addr"`
+}
+
 func (s *ServerInfo) String() string {
 	return fmt.Sprintf("Server[%d](%s)<%s>", s.ServerId, s.ServerAddr.String(),
 		s.Role.String())

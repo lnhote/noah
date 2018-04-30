@@ -1,0 +1,9 @@
+server_id: 1
+leader_id: 2
+cluster:
+  - server_id: 1
+    role: 0
+    server_addr: 127.0.0.1:8881
+  - server_id: 2
+    role: 0
+    server_addr: 127.0.0.1:8882

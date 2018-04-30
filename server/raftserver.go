@@ -15,7 +15,7 @@ import (
 	"github.com/lnhote/noah/core/errmsg"
 	"github.com/lnhote/noah/core/errno"
 	"github.com/lnhote/noah/core/raftrpc"
-	"github.com/lnhote/noah/server/store"
+	"github.com/lnhote/noah/core/store"
 	"github.com/v2pro/plz/countlog"
 )
 

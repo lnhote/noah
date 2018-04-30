@@ -1,3 +1,6 @@
+[![License](http://img.shields.io/badge/license-mit-blue.svg?style=flat-square)](https://raw.githubusercontent.com/lnhote/noah/master/LICENSE)
+
+
 # What is noah?
 noah is a distributed consensus kv store system.
 

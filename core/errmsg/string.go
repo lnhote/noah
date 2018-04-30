@@ -7,7 +7,16 @@ func (e Errmsg) Error() string {
 }
 
 const (
-	NoSuchCommand    = Errmsg("NoSuchCommand")
-	ReplicateLogFail = Errmsg("ReplicateLogFail")
-	ServerNotFound   = Errmsg("ServerNotFound")
+	NoSuchCommand       = Errmsg("NoSuchCommand")
+	CRCShortWrite       = Errmsg("CRCShortWrite")
+	CRCError            = Errmsg("CRCError")
+	ShortWrite          = Errmsg("ShortWrite")
+	OpenWALError        = Errmsg("OpenWALError")
+	EncodingRecordError = Errmsg("EncodingRecordError")
+	ReplicateLogFail    = Errmsg("ReplicateLogFail")
+	ServerNotFound      = Errmsg("ServerNotFound")
+	EncodingError       = Errmsg("EncodingError")
+	DecodeError         = Errmsg("DecodeError")
+	DataTooShort        = Errmsg("DataTooShort")
+	EOF                 = Errmsg("EOF")
 )
