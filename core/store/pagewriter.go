@@ -6,6 +6,7 @@ import (
 	"hash"
 	"hash/crc32"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -178,22 +179,26 @@ func CreateDefaultRepo(dirpath string) (*repo, error) {
 func (pw *pageWriter) SaveLogEntry(ent *core.LogEntry) error {
 	bytes, err := json.Marshal(ent)
 	if err != nil {
-		panic(fmt.Sprintf("SaveLogEntry should never fail! %+v", ent))
+		log.Printf("EncodingError: LogEntry.Marshal fail: %+v", ent)
+		return errmsg.EncodingError
 	}
-	var n int
-	if n, err = pw.saveRecord(bytes, LogEntry); n != len(bytes) {
+	if n, err := pw.saveRecord(bytes, LogEntry); err != nil {
+		return err
+	} else if n != len(bytes)+FrameHeadSize {
 		return errmsg.ShortWrite
 	}
 	return nil
 }
 
 func (pw *pageWriter) SaveState(state *core.PersistentState) error {
-	var bytes, err = json.Marshal(state)
+	bytes, err := json.Marshal(state)
 	if err != nil {
-		panic(fmt.Sprintf("SaveState should never fail! %+v", state))
+		log.Printf("EncodingError: PersistentState.Marshal fail: %+v", state)
+		return errmsg.EncodingError
 	}
-	var n int
-	if n, err = pw.saveRecord(bytes, State); n != len(bytes) {
+	if n, err := pw.saveRecord(bytes, State); err != nil {
+		return err
+	} else if n != len(bytes)+FrameHeadSize {
 		return errmsg.ShortWrite
 	}
 	return nil
@@ -210,7 +215,14 @@ func (pw *pageWriter) saveRecord(bytes []byte, dtype dataType) (int, error) {
 		leftDataSize := leftPageSize - FrameHeadSize
 		if leftDataSize <= 0 {
 			// not enough for a record
-			pw.offset += leftPageSize
+			padBytes := make([]byte, leftPageSize)
+			if c, err := pw.writer.Write(padBytes); err != nil {
+				return writtenBytes, err
+			} else if c != leftPageSize {
+				return writtenBytes, errmsg.ShortWrite
+			} else {
+				pw.offset += leftPageSize
+			}
 			continue
 		}
 		ftype := getFrameType(leftPageSize, len(bytes), writtenBytes)

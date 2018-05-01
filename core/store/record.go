@@ -108,6 +108,7 @@ func (r *Record) FrameSize() int {
 
 func NewRecord(bytes []byte, dtype dataType, ftype frameType, crc hash.Hash32) (*Record, error) {
 	rec := &Record{Data: bytes, Size: uint16(len(bytes)), DType: dtype, FType: ftype}
+	crc.Reset()
 	var n, err = crc.Write(bytes)
 	if err != nil {
 		return nil, err

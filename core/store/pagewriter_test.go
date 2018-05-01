@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"encoding/json"
 	"io/ioutil"
 	"log"
@@ -83,25 +84,26 @@ func TestPageWriter_SaveRecord_LogEntry(t *testing.T) {
 	newRepo, _ := CreateRepo("test/TestPageWriter_SaveLogEntry", pageSize, int64(pageSize*1))
 	w := newRepo.Writer
 	data := getRandRecord(10)
-
 	n, err := w.saveRecord(data, LogEntry)
 	assert.Nil(t, err)
 	assert.Equal(t, 10+8, n)
 	rec, err := NewRecord(data, LogEntry, FullType, w.crc)
 	recBytes := rec.MustMarshal()
-	log.Print("rec", rec, "\nrecBytes", recBytes)
-	bytes, err := ioutil.ReadFile(newRepo.walFileName)
-	//assert.Equal(t, recBytes[:18], bytes[:18])
-	log.Print("ReadFramesFromFile", bytes[:18])
+	assert.Equal(t, uint32(0x7e39d314), rec.Crc)
+	assert.Equal(t, 2117718804, int(rec.Crc))
+	assert.True(t, bytes.Equal([]byte{0x7e, 0x39, 0xd3, 0x14}, recBytes[:4]))
+
+	bytesFromFile, err := ioutil.ReadFile(newRepo.walFileName)
+	assert.Equal(t, recBytes[:18], bytesFromFile[:18])
+	// check saveRecord.crc
+	assert.Equal(t, []byte{0x7e, 0x39, 0xd3, 0x14}, bytesFromFile[:4])
 	recList, err := ReadFramesFromFile(newRepo.walFileName, pageSize)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(recList))
 	assert.Equal(t, uint16(10), recList[0].Size)
 	assert.Equal(t, FullType, recList[0].FType)
+	assert.Equal(t, uint32(0x7e39d314), recList[0].Crc)
 }
-
-// TODO: the following cases are not successful yet
-// something is wrong with crc???
 
 func TestPageWriter_SaveLogEntry(t *testing.T) {
 	pageSize := 128
@@ -112,18 +114,20 @@ func TestPageWriter_SaveLogEntry(t *testing.T) {
 		Index:   1,
 		Term:    1,
 	}
-	err := w.SaveLogEntry(ent)
-	assert.Nil(t, err)
+	assert.Nil(t, w.SaveLogEntry(ent))
 
-	entbytes, err := json.Marshal(ent)
-	log.Print("ent length", len(entbytes))
-	log.Print("entbytes", entbytes)
-	rec, err := NewRecord(entbytes, LogEntry, FullType, w.crc)
+	entBytes, err := json.Marshal(ent)
+	assert.Equal(t, 80, len(entBytes))
+	rec, err := NewRecord(entBytes, LogEntry, FullType, w.crc)
+	assert.Nil(t, err)
 	recBytes := rec.MustMarshal()
-	log.Print("rec", rec, "\nrecBytes", recBytes)
-	bytes, err := ioutil.ReadFile(newRepo.walFileName)
-	//assert.Equal(t, recBytes[:18], bytes[:18])
-	log.Print("ReadFramesFromFile", bytes[:88])
+	log.Printf("rec %+v\nrec bytes: %d\n", rec, recBytes)
+
+	fileBytes, err := ioutil.ReadFile(newRepo.walFileName)
+	assert.Nil(t, err)
+	log.Print("ReadFramesFromFile", fileBytes[:88])
+	assert.Equal(t, recBytes[:18], fileBytes[:18])
+
 	recList, err := ReadFramesFromFile(newRepo.walFileName, pageSize)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(recList))
@@ -134,31 +138,46 @@ func TestPageWriter_SaveLogEntry(t *testing.T) {
 func TestPageWriter_SaveState(t *testing.T) {
 	pageSize := 128
 	newRepo, _ := CreateRepo("tmp/TestPageWriter_SaveState", pageSize, int64(pageSize*2))
+	w := newRepo.Writer
+
 	testState := &core.PersistentState{10, 5, core.NewLogRepo()}
-	newRepo.Writer.SaveState(testState)
+	assert.Nil(t, w.SaveState(testState))
+
+	entBytes, err := json.Marshal(testState)
+	assert.Equal(t, 43, len(entBytes))
+	rec, err := NewRecord(entBytes, State, FullType, w.crc)
+	assert.Nil(t, err)
+	recBytes := rec.MustMarshal()
+	log.Printf("rec %+v\nrec bytes: %d\n", rec, recBytes)
+
+	fileBytes, err := ioutil.ReadFile(newRepo.walFileName)
+	assert.Nil(t, err)
+	log.Print("ReadFramesFromFile", fileBytes[:51])
+	assert.Equal(t, recBytes[:18], fileBytes[:18])
+
+	recList, err := ReadFramesFromFile(newRepo.walFileName, pageSize)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(recList))
+	assert.Equal(t, uint16(43), recList[0].Size)
+	assert.Equal(t, FullType, recList[0].FType)
 }
 
 func TestPageWriter_saveRecordCombine(t *testing.T) {
 	pageSize := 32 * 1024
-	newRepo, _ := CreateRepo("tmp/TestPageWriter_saveRecordCombine", pageSize, int64(pageSize*10))
+	newRepo, _ := CreateRepo("tmp/TestPageWriter_saveRecordCombine", pageSize, int64(pageSize*5))
 	w := newRepo.Writer
-	recA := getRandRecord(1000)
-	assert.Equal(t, 1000, len(recA))
-	recB := getRandRecord(97270)
-	assert.Equal(t, 97270, len(recB))
-	recC := getRandRecord(8000)
-	assert.Equal(t, 8000, len(recC))
-	var n, err = w.saveRecord(recA, LogEntry)
+
+	var n, err = w.saveRecord(getRandRecord(1000), LogEntry)
 	if err != nil {
 		t.Fatal(err)
 	}
-	assert.Equal(t, 1008, n)
-	n, err = w.saveRecord(recB, LogEntry)
+	assert.Equal(t, 1000+8, n)
+	n, err = w.saveRecord(getRandRecord(97270), LogEntry)
 	if err != nil {
 		t.Fatal(err)
 	}
 	assert.Equal(t, 97270+3*8, n)
-	n, err = w.saveRecord(recC, LogEntry)
+	n, err = w.saveRecord(getRandRecord(8000), LogEntry)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,11 +185,11 @@ func TestPageWriter_saveRecordCombine(t *testing.T) {
 
 	recList, err := ReadFramesFromFile(newRepo.walFileName, pageSize)
 	assert.Nil(t, err)
-	assert.Equal(t, 4, len(recList))
+	assert.Equal(t, 5, len(recList))
 
+	// 32768
 	assert.Equal(t, uint16(1000), recList[0].Size)
 	assert.Equal(t, FullType, recList[0].FType)
-
 	assert.Equal(t, uint16(31752), recList[1].Size)
 	assert.Equal(t, FirstType, recList[1].FType)
 
