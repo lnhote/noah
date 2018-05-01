@@ -1,10 +1,12 @@
 package store
 
 import (
+	"encoding/json"
 	"hash"
 	"io/ioutil"
 	"log"
 
+	"github.com/lnhote/noah/core"
 	"github.com/lnhote/noah/core/errmsg"
 )
 
@@ -118,6 +120,70 @@ func NewRecord(bytes []byte, dtype dataType, ftype frameType, crc hash.Hash32) (
 	}
 	rec.Crc = crc.Sum32()
 	return rec, nil
+}
+
+func RestoreLogEntriesAndState(filename string, pageSize int) (*core.PersistentState, error) {
+	logEntries := make([]*core.LogEntry, 0, 1)
+	records, err := ReadFramesFromFile(filename, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	var logEntry *core.LogEntry
+	var state *core.PersistentState
+	logEntryBuf := make([]byte, 0, 1)
+	stateBuf := make([]byte, 0, 1)
+	for i := 0; i < len(records); i++ {
+		record := records[i]
+		if record.DType == LogEntry {
+			switch record.FType {
+			case FullType:
+				logEntry = &core.LogEntry{}
+				if err := json.Unmarshal(record.Data, logEntry); err != nil {
+					panic(err)
+				}
+				logEntries = append(logEntries, logEntry)
+			case FirstType:
+				logEntryBuf = append(logEntryBuf, record.Data...)
+			case MiddleType:
+				logEntryBuf = append(logEntryBuf, record.Data...)
+			case LastType:
+				logEntryBuf = append(logEntryBuf, record.Data...)
+				logEntry = &core.LogEntry{}
+				if err := json.Unmarshal(logEntryBuf, logEntry); err != nil {
+					panic(err)
+				}
+				logEntries = append(logEntries, logEntry)
+				logEntryBuf = make([]byte, 0, 1)
+			default:
+			}
+		} else if record.DType == State {
+			switch record.FType {
+			case FullType:
+				state = &core.PersistentState{}
+				if err := json.Unmarshal(record.Data, state); err != nil {
+					panic(err)
+				}
+			case FirstType:
+				stateBuf = append(stateBuf, record.Data...)
+			case MiddleType:
+				stateBuf = append(stateBuf, record.Data...)
+			case LastType:
+				stateBuf = append(stateBuf, record.Data...)
+				state = &core.PersistentState{}
+				if err := json.Unmarshal(stateBuf, state); err != nil {
+					panic(err)
+				}
+				stateBuf = make([]byte, 0, 1)
+			default:
+			}
+		}
+	}
+	if len(logEntries) > 0 {
+		state.Logs = core.NewLogRepoWithLogs(logEntries)
+	} else {
+		state.Logs = core.NewLogRepo()
+	}
+	return state, nil
 }
 
 func ReadFramesFromFile(filename string, pageSize int) ([]*Record, error) {

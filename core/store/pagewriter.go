@@ -184,7 +184,8 @@ func (pw *pageWriter) SaveLogEntry(ent *core.LogEntry) error {
 	}
 	if n, err := pw.saveRecord(bytes, LogEntry); err != nil {
 		return err
-	} else if n != len(bytes)+FrameHeadSize {
+	} else if n != len(bytes) {
+		log.Printf("ShortWrite: SaveLogEntry, written=%d, len=%d", n, len(bytes))
 		return errmsg.ShortWrite
 	}
 	return nil
@@ -198,9 +199,15 @@ func (pw *pageWriter) SaveState(state *core.PersistentState) error {
 	}
 	if n, err := pw.saveRecord(bytes, State); err != nil {
 		return err
-	} else if n != len(bytes)+FrameHeadSize {
+	} else if n != len(bytes) {
+		log.Printf("ShortWrite: SaveState, written=%d, len=%d", n, len(bytes))
 		return errmsg.ShortWrite
 	}
+	//for _, ent := range state.Logs.GetLogList(0) {
+	//	if err = pw.SaveLogEntry(ent); err != nil {
+	//		return err
+	//	}
+	//}
 	return nil
 }
 
@@ -219,6 +226,7 @@ func (pw *pageWriter) saveRecord(bytes []byte, dtype dataType) (int, error) {
 			if c, err := pw.writer.Write(padBytes); err != nil {
 				return writtenBytes, err
 			} else if c != leftPageSize {
+				log.Printf("ShortWrite: saveRecordPad, written=%d, len=%d", c, leftPageSize)
 				return writtenBytes, errmsg.ShortWrite
 			} else {
 				pw.offset += leftPageSize
@@ -245,7 +253,7 @@ func (pw *pageWriter) saveRecord(bytes []byte, dtype dataType) (int, error) {
 		writtenFrameBytes += n
 		writtenBytes += n - FrameHeadSize
 	}
-	return writtenFrameBytes, nil
+	return writtenBytes, nil
 }
 
 func (pw *pageWriter) mustWriteRecordToFile(rec *Record) int {
@@ -264,6 +272,7 @@ func (pw *pageWriter) writeRecordToFile(rec *Record) (int, error) {
 	if c, err := pw.writer.Write(recBytes); err != nil {
 		return 0, err
 	} else if c != len(recBytes) {
+		log.Printf("ShortWrite: writeRecordToFile, written=%d, len=%d", c, len(recBytes))
 		return c, errmsg.ShortWrite
 	} else {
 		return c, nil
@@ -275,17 +284,18 @@ func (pw *pageWriter) writeRecordToFile(rec *Record) (int, error) {
 // totalBytes is the total bytes of the record to be put into frames
 // writtenBytes is the number of bytes already put into previous frames
 func getFrameType(availBytes, totalBytes, doneBytes int) frameType {
-	if totalBytes+FrameHeadSize <= availBytes {
-		return FullType
-	} else {
-		if doneBytes == 0 {
-			return FirstType
+	if doneBytes > 0 {
+		if totalBytes-doneBytes+FrameHeadSize <= availBytes {
+			return LastType
 		} else {
-			if availBytes-FrameHeadSize >= totalBytes-doneBytes {
-				return LastType
-			} else {
-				return MiddleType
-			}
+			return MiddleType
+		}
+	} else {
+		// new, no previous frame
+		if totalBytes+FrameHeadSize <= availBytes {
+			return FullType
+		} else {
+			return FirstType
 		}
 	}
 }

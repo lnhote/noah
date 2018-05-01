@@ -21,6 +21,14 @@ func NewLogRepo() *LogRepo {
 	return &LogRepo{logs: map[int]*LogEntry{}, lastIndex: 0}
 }
 
+func NewLogRepoWithLogs(ents []*LogEntry) *LogRepo {
+	repo := &LogRepo{logs: map[int]*LogEntry{}, lastIndex: 0}
+	for _, ent := range ents {
+		repo.SaveLogEntry(ent)
+	}
+	return repo
+}
+
 func (l *LogRepo) GetLastIndex() int {
 	return l.lastIndex
 }
@@ -51,6 +59,10 @@ func (l *LogRepo) GetLogList(start int) []*LogEntry {
 		newLogs = append(newLogs, l.logs[i])
 	}
 	return newLogs
+}
+
+func (l *LogRepo) GetAllLogs() []*LogEntry {
+	return l.GetLogList(0)
 }
 
 func (ll *LogRepo) GetLogEntry(index int) (*LogEntry, error) {
