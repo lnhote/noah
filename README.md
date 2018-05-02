@@ -66,3 +66,9 @@ glide update
 
 glide get package/xxx
 ```
+
+### test
+
+```bash
+go test -tags="rocksdb" ./...
+```

@@ -61,6 +61,11 @@ func TestStartHeartbeatTimer(t *testing.T) {
 	s2Last := s2.leaderElectionTimer.LastFiredTime()
 	s3Last := s3.leaderElectionTimer.LastFiredTime()
 	s4Last := s4.leaderElectionTimer.LastFiredTime()
+	defer s1.Stop()
+	defer s2.Stop()
+	defer s3.Stop()
+	defer s4.Stop()
+	defer s5.Stop()
 	for i := 0; i < 10; i++ {
 		// make sure heart beat is triggered for leader
 		time.Sleep(time.Millisecond * 1000)
@@ -97,6 +102,12 @@ func TestVoteNoTimeout(t *testing.T) {
 	assert.True(t, s3.collectVotes().Timeout < 1)
 	assert.True(t, s4.collectVotes().Timeout < 1)
 	assert.True(t, s5.collectVotes().Timeout < 1)
+	s1.Stop()
+	s2.Stop()
+	s3.Stop()
+	s4.Stop()
+	s5.Stop()
+
 }
 
 func TestStartAndStop(t *testing.T) {
@@ -139,13 +150,18 @@ func TestLeaderElectionAfterLeaderDead(t *testing.T) {
 	s2Last := s2.leaderElectionTimer.LastFiredTime()
 	s3Last := s3.leaderElectionTimer.LastFiredTime()
 	s4Last := s4.leaderElectionTimer.LastFiredTime()
-	time.Sleep(time.Second * 20)
+	time.Sleep(time.Second * 10)
 	atLeastOne := s1.leaderElectionTimer.LastFiredTime() != s1Last || s2.leaderElectionTimer.LastFiredTime() != s2Last ||
 		s3.leaderElectionTimer.LastFiredTime() != s3Last || s4.leaderElectionTimer.LastFiredTime() != s4Last
 	assert.True(t, atLeastOne)
 	atLeastOneLeader := s1.ServerConf.Info.Role == core.RoleLeader || s2.ServerConf.Info.Role == core.RoleLeader ||
 		s3.ServerConf.Info.Role == core.RoleLeader || s4.ServerConf.Info.Role == core.RoleLeader
 	assert.True(t, atLeastOneLeader)
+	s1.Stop()
+	s2.Stop()
+	s3.Stop()
+	s4.Stop()
+	s5.Stop()
 
 }
 
@@ -235,4 +251,9 @@ func TestRaftServer_AppendLog(t *testing.T) {
 	assert.Equal(t, 0, getLastLogTerm(s5))
 	logEntry, _ := s5.stableInfo.Logs.GetLogEntry(1)
 	assert.Equal(t, "test", string(logEntry.Command.Value))
+	s1Leader.Stop()
+	s2.Stop()
+	s3.Stop()
+	s4.Stop()
+	s5.Stop()
 }

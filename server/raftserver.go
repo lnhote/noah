@@ -15,7 +15,7 @@ import (
 	"github.com/lnhote/noah/core/errmsg"
 	"github.com/lnhote/noah/core/errno"
 	"github.com/lnhote/noah/core/raftrpc"
-	"github.com/lnhote/noah/core/store"
+	"github.com/lnhote/noah/core/store/kvstore"
 	"github.com/v2pro/plz/countlog"
 )
 
@@ -441,7 +441,7 @@ func (s *RaftServer) Get(cmd *entity.Command, resp *raftrpc.ClientResponse) erro
 	}
 	switch cmd.CommandType {
 	case entity.CmdGet:
-		val, err := store.DBGet(cmd.Key)
+		val, err := kvstore.DBGet(cmd.Key)
 		if err != nil {
 			countlog.Error("DBGet failed", "key", cmd.Key, "error", err)
 			resp.Errcode = errno.InternalServerError
@@ -529,7 +529,7 @@ func (s *RaftServer) ReplicateLog(cmd *entity.Command) ([]byte, error) {
 		// replicate success
 		s.volatileInfo.CommitIndex = s.stableInfo.Logs.GetLastIndex()
 		s.applyLogs()
-		return store.DBGet(cmd.Key)
+		return kvstore.DBGet(cmd.Key)
 	} else {
 		return nil, errmsg.ReplicateLogFail
 	}
@@ -590,7 +590,7 @@ func (s *RaftServer) applyLogs() {
 	for i := s.volatileInfo.LastApplied + 1; i <= s.volatileInfo.CommitIndex; i++ {
 		countlog.Info(fmt.Sprintf("apply log %d", i))
 		if logToApply, err := s.stableInfo.Logs.GetLogEntry(i); err == nil {
-			if dbErr := store.DBSet(logToApply.Command.Key, logToApply.Command.Value); dbErr == nil {
+			if dbErr := kvstore.DBSet(logToApply.Command.Key, logToApply.Command.Value); dbErr == nil {
 				countlog.Info(fmt.Sprintf("apply log %d [%s] success", i, logToApply.Command.String()))
 				s.volatileInfo.LastApplied++
 			} else {

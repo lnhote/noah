@@ -73,9 +73,9 @@ func TestMustWriteRecordToFile(t *testing.T) {
 	recBytes := rec.MustMarshal()
 	log.Print(newRepo.walFileName)
 	log.Print("rec", rec, "\nrecBytes", recBytes)
-	bytes, err := ioutil.ReadFile(newRepo.walFileName)
-	assert.Equal(t, recBytes[:18], bytes[:18])
-	log.Print("ReadFramesFromBytes", bytes[:18])
+	bytesFromFile, err := ioutil.ReadFile(newRepo.walFileName)
+	assert.Equal(t, recBytes[:18], bytesFromFile[:18])
+	log.Print("ReadFramesFromBytes", bytesFromFile[:18])
 	recList, err := ReadFramesFromFile(newRepo.walFileName, pageSize)
 	log.Printf("reclist = %+v", recList)
 	assert.Nil(t, err)
@@ -86,7 +86,7 @@ func TestMustWriteRecordToFile(t *testing.T) {
 
 func TestPageWriter_SaveRecord_LogEntry(t *testing.T) {
 	pageSize := 128
-	newRepo, _ := CreateRepo("test/TestPageWriter_SaveLogEntry", pageSize, int64(pageSize*1))
+	newRepo, _ := CreateRepo("test/TestPageWriter_SaveRecord_LogEntry", pageSize, int64(pageSize*1))
 	w := newRepo.Writer
 	data := getRandRecord(10)
 	n, err := w.saveRecord(data, LogEntry)
@@ -149,7 +149,7 @@ func TestPageWriter_SaveState(t *testing.T) {
 	assert.Nil(t, w.SaveState(testState))
 
 	entBytes, err := json.Marshal(testState)
-	assert.Equal(t, 43, len(entBytes))
+	assert.Equal(t, 36, len(entBytes))
 	rec, err := NewRecord(entBytes, State, FullType, w.crc)
 	assert.Nil(t, err)
 	recBytes := rec.MustMarshal()
@@ -163,7 +163,7 @@ func TestPageWriter_SaveState(t *testing.T) {
 	recList, err := ReadFramesFromFile(newRepo.walFileName, pageSize)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(recList))
-	assert.Equal(t, uint16(43), recList[0].Size)
+	assert.Equal(t, uint16(36), recList[0].Size)
 	assert.Equal(t, FullType, recList[0].FType)
 }
 

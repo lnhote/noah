@@ -99,7 +99,6 @@ var (
 	//SegmentSizeBytes int64 = 64 * 1024 * 1024 // 64MB
 	DefaultFlushSize = 128 * 1024 // 128kB
 	DefaultPageSize  = 32 * 1024
-	crcTable         = crc32.MakeTable(crc32.Castagnoli)
 )
 
 type repo struct {
@@ -135,7 +134,7 @@ func NewPageWriter(f *os.File, prevCrc uint32, pageSize int, segmentSize int64) 
 		pageSize:    pageSize,
 		segmentSize: segmentSize,
 		writer:      f,
-		crc:         crc.New(prevCrc, crcTable),
+		crc:         crc.New(prevCrc, crc32.MakeTable(crc32.Castagnoli)),
 	}
 	return pw
 }
