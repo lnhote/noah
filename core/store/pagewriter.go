@@ -111,7 +111,7 @@ type repo struct {
 type pageWriter struct {
 	mu     sync.Mutex
 	crc    hash.Hash32
-	writer io.Writer
+	writer *os.File
 	buf    []byte
 
 	// offset: the offset of the next read/write in the segment file
@@ -176,6 +176,21 @@ func CreateDefaultRepo(dirpath string) (*repo, error) {
 	return CreateRepo(dirpath, DefaultPageSize, SegmentSizeBytes)
 }
 
+// SaveAll persist all stuff to disk
+func (pw *pageWriter) SaveAll(ents []*core.LogEntry, state *core.PersistentState) error {
+	if len(ents) > 0 {
+		for _, ent := range ents {
+			if err := pw.SaveLogEntry(ent); err != nil {
+				return err
+			}
+		}
+	}
+	if err := pw.SaveState(state); err != nil {
+		return err
+	}
+	return pw.sync()
+}
+
 func (pw *pageWriter) SaveLogEntry(ent *core.LogEntry) error {
 	bytes, err := json.Marshal(ent)
 	if err != nil {
@@ -208,6 +223,17 @@ func (pw *pageWriter) SaveState(state *core.PersistentState) error {
 	//		return err
 	//	}
 	//}
+	return nil
+}
+
+func (pw *pageWriter) sync() error {
+	curOffset, err := pw.writer.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return err
+	}
+	if curOffset < SegmentSizeBytes {
+		return fs.Fsync(pw.writer)
+	}
 	return nil
 }
 
