@@ -113,7 +113,7 @@ func TestReadFromBytes_withPad(t *testing.T) {
 	encodedRecC2 := recC2.MustMarshal()
 	totalBytes = append(totalBytes, encodedRecC2...)
 
-	testWalFileName := "tmp/TestReadFromBytes_withPad"
+	testWalFileName := "test/TestReadFromBytes_withPad"
 	err := ioutil.WriteFile(testWalFileName, totalBytes, 0644)
 	assert.Nil(t, err)
 

@@ -142,7 +142,7 @@ func TestPageWriter_SaveLogEntry(t *testing.T) {
 
 func TestPageWriter_SaveState(t *testing.T) {
 	pageSize := 128
-	newRepo, _ := CreateRepo("tmp/TestPageWriter_SaveState", pageSize, int64(pageSize*2))
+	newRepo, _ := CreateRepo("test/TestPageWriter_SaveState", pageSize, int64(pageSize*2))
 	w := newRepo.Writer
 
 	testState := &core.PersistentState{10, 5, core.NewLogRepo()}
@@ -169,7 +169,7 @@ func TestPageWriter_SaveState(t *testing.T) {
 
 func TestPageWriter_saveRecordCombine(t *testing.T) {
 	pageSize := 32 * 1024
-	newRepo, _ := CreateRepo("tmp/TestPageWriter_saveRecordCombine", pageSize, int64(pageSize*5))
+	newRepo, _ := CreateRepo("test/TestPageWriter_saveRecordCombine", pageSize, int64(pageSize*5))
 	w := newRepo.Writer
 
 	var n, err = w.saveRecord(getRandRecord(1000), LogEntry)
