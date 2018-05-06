@@ -71,12 +71,12 @@ func TestMustWriteRecordToFile(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, 10+8, n)
 	recBytes := rec.MustMarshal()
-	log.Print(newRepo.walFileName)
+	log.Print(newRepo.WalFileName)
 	log.Print("rec", rec, "\nrecBytes", recBytes)
-	bytesFromFile, err := ioutil.ReadFile(newRepo.walFileName)
+	bytesFromFile, err := ioutil.ReadFile(newRepo.WalFileName)
 	assert.Equal(t, recBytes[:18], bytesFromFile[:18])
 	log.Print("ReadFramesFromBytes", bytesFromFile[:18])
-	recList, err := ReadFramesFromFile(newRepo.walFileName, pageSize)
+	recList, err := ReadFramesFromFile(newRepo.WalFileName, pageSize)
 	log.Printf("reclist = %+v", recList)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(recList))
@@ -98,11 +98,11 @@ func TestPageWriter_SaveRecord_LogEntry(t *testing.T) {
 	assert.Equal(t, 2117718804, int(rec.Crc))
 	assert.True(t, bytes.Equal([]byte{0x7e, 0x39, 0xd3, 0x14}, recBytes[:4]))
 
-	bytesFromFile, err := ioutil.ReadFile(newRepo.walFileName)
+	bytesFromFile, err := ioutil.ReadFile(newRepo.WalFileName)
 	assert.Equal(t, recBytes[:18], bytesFromFile[:18])
 	// check saveRecord.crc
 	assert.Equal(t, []byte{0x7e, 0x39, 0xd3, 0x14}, bytesFromFile[:4])
-	recList, err := ReadFramesFromFile(newRepo.walFileName, pageSize)
+	recList, err := ReadFramesFromFile(newRepo.WalFileName, pageSize)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(recList))
 	assert.Equal(t, uint16(10), recList[0].Size)
@@ -128,12 +128,12 @@ func TestPageWriter_SaveLogEntry(t *testing.T) {
 	recBytes := rec.MustMarshal()
 	log.Printf("rec %+v\nrec bytes: %d\n", rec, recBytes)
 
-	fileBytes, err := ioutil.ReadFile(newRepo.walFileName)
+	fileBytes, err := ioutil.ReadFile(newRepo.WalFileName)
 	assert.Nil(t, err)
 	log.Print("ReadFramesFromFile", fileBytes[:88])
 	assert.Equal(t, recBytes[:18], fileBytes[:18])
 
-	recList, err := ReadFramesFromFile(newRepo.walFileName, pageSize)
+	recList, err := ReadFramesFromFile(newRepo.WalFileName, pageSize)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(recList))
 	assert.Equal(t, uint16(80), recList[0].Size)
@@ -155,12 +155,12 @@ func TestPageWriter_SaveState(t *testing.T) {
 	recBytes := rec.MustMarshal()
 	log.Printf("rec %+v\nrec bytes: %d\n", rec, recBytes)
 
-	fileBytes, err := ioutil.ReadFile(newRepo.walFileName)
+	fileBytes, err := ioutil.ReadFile(newRepo.WalFileName)
 	assert.Nil(t, err)
 	log.Print("ReadFramesFromFile", fileBytes[:51])
 	assert.Equal(t, recBytes[:18], fileBytes[:18])
 
-	recList, err := ReadFramesFromFile(newRepo.walFileName, pageSize)
+	recList, err := ReadFramesFromFile(newRepo.WalFileName, pageSize)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(recList))
 	assert.Equal(t, uint16(36), recList[0].Size)
@@ -188,7 +188,7 @@ func TestPageWriter_saveRecordCombine(t *testing.T) {
 	}
 	assert.Equal(t, 8000, n)
 
-	recList, err := ReadFramesFromFile(newRepo.walFileName, pageSize)
+	recList, err := ReadFramesFromFile(newRepo.WalFileName, pageSize)
 	assert.Nil(t, err)
 	assert.Equal(t, 5, len(recList))
 
@@ -210,7 +210,7 @@ func TestPageWriter_saveRecordCombine(t *testing.T) {
 
 func TestRestoreLogEntriesAndState(t *testing.T) {
 	pageSize := 128
-	newRepo, _ := CreateRepo("test/TestRestoreLogEntriesAndState", pageSize, int64(pageSize*3))
+	newRepo, _ := CreateTmpRepo("test/TestRestoreLogEntriesAndState", pageSize, int64(pageSize*3))
 	w := newRepo.Writer
 	ents := []*core.LogEntry{{
 		Command: &entity.Command{CommandType: entity.CmdSet, Key: "name", Value: []byte("hunter")},
@@ -226,10 +226,21 @@ func TestRestoreLogEntriesAndState(t *testing.T) {
 	for _, ent := range ents {
 		assert.Nil(t, w.SaveLogEntry(ent))
 	}
-	state, err := RestoreLogEntriesAndState(newRepo.walFileName, pageSize)
+	state, err := RestoreLogEntriesAndState(newRepo.WalFileName, pageSize)
 	assert.Nil(t, err)
 	assert.Equal(t, 10, state.Term)
 	assert.Equal(t, 5, state.LastVotedServerId)
 	logEntires := state.Logs.GetAllLogs()
+	assert.Equal(t, 3, len(logEntires))
+}
+
+func TestOpenRepo(t *testing.T) {
+	pageSize := 128
+	newRepo, err := OpenRepo("test/TestReadRepo", pageSize, int64(pageSize*3))
+	assert.NotNil(t, newRepo)
+	assert.Nil(t, err)
+	assert.Equal(t, 10, newRepo.State.Term)
+	assert.Equal(t, 5, newRepo.State.LastVotedServerId)
+	logEntires := newRepo.LogEntries
 	assert.Equal(t, 3, len(logEntires))
 }

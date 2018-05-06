@@ -3,6 +3,8 @@ package core
 import (
 	"fmt"
 	"github.com/lnhote/noah/core/errmsg"
+	"gopkg.in/yaml.v2"
+	"io/ioutil"
 	"net"
 )
 
@@ -69,4 +71,34 @@ func NewServerConf(info *ServerInfo, leader *ServerInfo, clusterAddrs []*ServerI
 		serverConf.clusterMapByAddr[server.ServerAddr.String()] = server
 	}
 	return serverConf
+}
+
+func GetServerConfFromFile(filename string) (*ServerConfig, error) {
+	content, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	cluster := &ymalClusterConfig{}
+	err = yaml.Unmarshal(content, cluster)
+	if err != nil {
+		return nil, err
+	}
+	var leaderInfo *ServerInfo
+	var thisServer *ServerInfo
+	clusterInfoList := make([]*ServerInfo, 0)
+	for _, server := range cluster.Cluster {
+		serverAddr, err := net.ResolveTCPAddr("tcp", server.ServerAddr)
+		if err != nil {
+			return nil, err
+		}
+		nodeInfo := &ServerInfo{server.ServerId, server.Role, serverAddr}
+		clusterInfoList = append(clusterInfoList, nodeInfo)
+		if server.ServerId == cluster.ServerId {
+			thisServer = nodeInfo
+		}
+		if server.ServerId == cluster.LeaderId {
+			leaderInfo = nodeInfo
+		}
+	}
+	return NewServerConf(thisServer, leaderInfo, clusterInfoList), nil
 }

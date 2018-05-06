@@ -102,9 +102,11 @@ var (
 )
 
 type repo struct {
-	dir         string
-	walFileName string
+	Dir         string
+	WalFileName string
 	Writer      *pageWriter
+	State       *core.PersistentState
+	LogEntries  []*core.LogEntry
 }
 
 type pageWriter struct {
@@ -140,34 +142,71 @@ func NewPageWriter(f *os.File, prevCrc uint32, pageSize int, segmentSize int64) 
 }
 
 func CreateRepo(dirpath string, pageSize int, segmentSize int64) (*repo, error) {
+	dirpath = filepath.Clean(dirpath)
 	if fs.Exist(dirpath) {
 		return nil, os.ErrExist
 	}
-	tmpdirpath := filepath.Clean(dirpath) + ".tmp"
-	if fs.Exist(tmpdirpath) {
-		if err := os.RemoveAll(tmpdirpath); err != nil {
-			return nil, err
-		}
-	}
-	if err := fs.CreateDirAll(tmpdirpath); err != nil {
+	if err := fs.CreateDirAll(dirpath); err != nil {
 		return nil, err
 	}
-	filename := fmt.Sprintf("%016x-%016x.wal", 0, 0)
-	fullFilename := filepath.Join(tmpdirpath, filename)
-	f, err := fs.LockFile(fullFilename, os.O_WRONLY|os.O_CREATE, 0600)
+	// TODO get the lastest one and open, not just one
+	fullFilename := filepath.Join(dirpath, fmt.Sprintf("%04x-%04x.wal", 0, 0))
+	curWal, err := openWalFile(fullFilename, segmentSize)
 	if err != nil {
 		return nil, err
 	}
-	if _, err = f.Seek(0, io.SeekEnd); err != nil {
+	return &repo{
+		Dir:         dirpath,
+		WalFileName: fullFilename,
+		Writer:      NewPageWriter(curWal.File, 0, pageSize, segmentSize),
+		State:       &core.PersistentState{0, 0, core.NewLogRepo()},
+		LogEntries:  make([]*core.LogEntry, 0),
+	}, nil
+}
+
+func openWalFile(walfileName string, segmentSize int64) (*fs.LockedFile, error) {
+	curWal, err := fs.LockFile(walfileName, os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
 		return nil, err
 	}
-	if err = fs.Preallocate(f.File, segmentSize, true); err != nil {
+	if _, err = curWal.Seek(0, io.SeekEnd); err != nil {
+		return nil, err
+	}
+	if err = fs.Preallocate(curWal.File, segmentSize, true); err != nil {
+		return nil, err
+	}
+	return curWal, nil
+}
+
+func CreateTmpRepo(dirpath string, pageSize int, segmentSize int64) (*repo, error) {
+	dirpath = filepath.Clean(dirpath)
+	if fs.Exist(dirpath) {
+		if err := os.RemoveAll(dirpath); err != nil {
+			return nil, err
+		}
+	}
+	return CreateRepo(dirpath, pageSize, segmentSize)
+}
+
+func OpenRepo(dirpath string, pageSize int, segmentSize int64) (*repo, error) {
+	if !fs.Exist(dirpath) {
+		return CreateRepo(dirpath, pageSize, segmentSize)
+	}
+	fullFilename := filepath.Join(dirpath, fmt.Sprintf("%04x-%04x.wal", 0, 0))
+	curWal, err := openWalFile(fullFilename, segmentSize)
+	if err != nil {
+		return nil, err
+	}
+	state, err := RestoreLogEntriesAndState(fullFilename, pageSize)
+	if err != nil {
 		return nil, err
 	}
 	return &repo{
-		dir:         dirpath,
-		walFileName: fullFilename,
-		Writer:      NewPageWriter(f.File, 0, pageSize, segmentSize),
+		Dir:         dirpath,
+		WalFileName: fullFilename,
+		Writer:      NewPageWriter(curWal.File, 0, pageSize, segmentSize),
+		State:       state,
+		LogEntries:  state.Logs.GetAllLogs(),
 	}, nil
 }
 

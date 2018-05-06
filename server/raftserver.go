@@ -15,6 +15,7 @@ import (
 	"github.com/lnhote/noah/core/errmsg"
 	"github.com/lnhote/noah/core/errno"
 	"github.com/lnhote/noah/core/raftrpc"
+	"github.com/lnhote/noah/core/store"
 	"github.com/lnhote/noah/core/store/kvstore"
 	"github.com/v2pro/plz/countlog"
 )
@@ -119,6 +120,14 @@ func NewRaftServerWithEnv(conf *core.ServerConfig, env *core.Env) *RaftServer {
 	signal.Notify(newServer.sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGSTOP, syscall.SIGUSR1, syscall.SIGUSR2)
 	newServer.stopSignal = make(chan int, 1)
 	return newServer
+}
+
+func (s *RaftServer) OpenRepo(dirpath string, pageSize int, segmentSize int64) {
+	newRepo, err := store.OpenRepo(dirpath, pageSize, segmentSize)
+	if err != nil {
+		panic(err)
+	}
+	s.stableInfo = newRepo.State
 }
 
 func (s *RaftServer) String() string {

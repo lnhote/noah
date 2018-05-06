@@ -5,6 +5,7 @@ import (
 	"github.com/lnhote/noah/core"
 	"github.com/lnhote/noah/core/entity"
 	"github.com/lnhote/noah/core/raftrpc"
+	"github.com/lnhote/noah/core/store"
 	"github.com/stretchr/testify/assert"
 	"log"
 	"net/rpc"
@@ -256,4 +257,15 @@ func TestRaftServer_AppendLog(t *testing.T) {
 	s3.Stop()
 	s4.Stop()
 	s5.Stop()
+}
+
+func ExampleNewRaftServer() {
+	envExample := &core.Env{HeartBeatDurationInMs: 1000, LeaderElectionDurationInMs: 5000, RandomRangeInMs: 3000}
+	serverConfig, err := core.GetServerConfFromFile("config.yml")
+	if err != nil {
+		panic(err)
+	}
+	raftNode := NewRaftServerWithEnv(serverConfig, envExample)
+	raftNode.OpenRepo("test/ExampleNewRaftServer", store.DefaultPageSize, store.SegmentSizeBytes)
+	raftNode.Start()
 }

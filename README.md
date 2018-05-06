@@ -28,23 +28,15 @@ brew install glide
 glide install
 
 glide update
+
+sh build.sh
+
+cd output/
+
+./bin/noah-server -data /tmp/noah/data
 ```
 
-### client
-```bash
-noah set {key} {value}
-noah get {key}
-```
-
-```bash
-echo -n "test out the server" | nc localhost 8848
-```
-
-### server
-```bash
-noah-server {start|stop|restart|status}
-```
-
+TODO
 > -d: daemon mode  
 > -h: help info  
 > -v: show version info  
