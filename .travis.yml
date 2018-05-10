@@ -5,6 +5,7 @@ go:
   - 1.x
 
 before_install:
+  - go get -v github.com/Masterminds/glide
   - glide i
 
 script:
