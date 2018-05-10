@@ -8,33 +8,34 @@ import (
 	"net"
 )
 
+// ServerInfo is the basic attribute of a raft node
 type ServerInfo struct {
-	ServerId   int
+	ServerID   int
 	Role       raftRole
 	ServerAddr *net.TCPAddr
 }
 
 type ymalClusterConfig struct {
-	ServerId int           `yaml:"server_id"`
-	LeaderId int           `yaml:"leader_id"`
+	ServerID int           `yaml:"server_id"`
+	LeaderID int           `yaml:"leader_id"`
 	Cluster  []*ymalConfig `yaml:"cluster"`
 }
 
 type ymalConfig struct {
-	ServerId   int      `yaml:"server_id"`
+	ServerID   int      `yaml:"server_id"`
 	Role       raftRole `yaml:"role"`
 	ServerAddr string   `yaml:"server_addr"`
 }
 
 func (s *ServerInfo) String() string {
-	return fmt.Sprintf("Server[%d](%s)<%s>", s.ServerId, s.ServerAddr.String(),
+	return fmt.Sprintf("Server[%d](%s)<%s>", s.ServerID, s.ServerAddr.String(),
 		s.Role.String())
 }
 
 func NewServerInfo(id int, role raftRole, serverAddr string) *ServerInfo {
 	serverAddrObj, _ := net.ResolveTCPAddr("tcp", serverAddr)
 	serverInfo := &ServerInfo{
-		ServerId:   id,
+		ServerID:   id,
 		Role:       role,
 		ServerAddr: serverAddrObj,
 	}
@@ -52,12 +53,11 @@ type ServerConfig struct {
 	clusterMapByAddr map[string]*ServerInfo
 }
 
-func (sc *ServerConfig) FindIdByAddr(addr string) (int, error) {
+func (sc *ServerConfig) FindIDByAddr(addr string) (int, error) {
 	if server, ok := sc.clusterMapByAddr[addr]; ok {
-		return server.ServerId, nil
-	} else {
-		return 0, errmsg.ServerNotFound
+		return server.ServerID, nil
 	}
+	return 0, errmsg.ServerNotFound
 }
 
 func NewServerConf(info *ServerInfo, leader *ServerInfo, clusterAddrs []*ServerInfo) *ServerConfig {
@@ -67,7 +67,7 @@ func NewServerConf(info *ServerInfo, leader *ServerInfo, clusterAddrs []*ServerI
 	serverConf.ClusterAddrList = make(map[int]*ServerInfo, len(clusterAddrs))
 	serverConf.clusterMapByAddr = make(map[string]*ServerInfo, len(clusterAddrs))
 	for _, server := range clusterAddrs {
-		serverConf.ClusterAddrList[server.ServerId] = server
+		serverConf.ClusterAddrList[server.ServerID] = server
 		serverConf.clusterMapByAddr[server.ServerAddr.String()] = server
 	}
 	return serverConf
@@ -91,12 +91,12 @@ func GetServerConfFromFile(filename string) (*ServerConfig, error) {
 		if err != nil {
 			return nil, err
 		}
-		nodeInfo := &ServerInfo{server.ServerId, server.Role, serverAddr}
+		nodeInfo := &ServerInfo{server.ServerID, server.Role, serverAddr}
 		clusterInfoList = append(clusterInfoList, nodeInfo)
-		if server.ServerId == cluster.ServerId {
+		if server.ServerID == cluster.ServerID {
 			thisServer = nodeInfo
 		}
-		if server.ServerId == cluster.LeaderId {
+		if server.ServerID == cluster.LeaderID {
 			leaderInfo = nodeInfo
 		}
 	}

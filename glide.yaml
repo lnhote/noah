@@ -14,3 +14,5 @@ import:
   - countlog/output/compact
   - countlog/output/lumberjack
 - package: golang.org/x/net
+- package: go.uber.org/zap
+  version: ~1.8.0

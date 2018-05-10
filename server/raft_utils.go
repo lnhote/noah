@@ -22,19 +22,19 @@ func becomeLeader(s *RaftServer) {
 	s.stableInfo.Term = s.stableInfo.Term + 1
 
 	for _, server := range s.ServerConf.ClusterAddrList {
-		if s.ServerConf.Info.ServerId == server.ServerId {
+		if s.ServerConf.Info.ServerID == server.ServerID {
 			continue
 		}
-		s.leaderState.NextIndex[server.ServerId] = s.stableInfo.Logs.GetLastIndex() + 1
-		s.leaderState.MatchIndex[server.ServerId] = 0
-		s.leaderState.LastRpcTime[server.ServerId] = time.Now()
+		s.leaderState.NextIndex[server.ServerID] = s.stableInfo.Logs.GetLastIndex() + 1
+		s.leaderState.MatchIndex[server.ServerID] = 0
+		s.leaderState.LastRPCTime[server.ServerID] = time.Now()
 	}
 }
 
 func shouldVote(req *raftrpc.RequestVoteRequest, s *RaftServer) bool {
 	lastIndex := s.stableInfo.Logs.GetLastIndex()
 	lastTerm := s.stableInfo.Logs.GetLastTerm()
-	granted := false
+	var granted bool
 	if req.LastLogTerm > lastTerm {
 		granted = true
 	} else if req.LastLogTerm < lastTerm {
@@ -54,7 +54,7 @@ func buildAppendRPCRequest(s *RaftServer, follower *core.ServerInfo, prevLogInde
 	req.LeaderNode = s.ServerConf.Info
 	req.Term = s.stableInfo.Term
 	req.CommitIndex = s.volatileInfo.CommitIndex
-	newLogStartIndex := getFollwerNextIndex(s, follower.ServerId)
+	newLogStartIndex := getFollwerNextIndex(s, follower.ServerID)
 	if prevLogIndex == 0 {
 		req.PrevLogIndex = 0
 		req.PrevLogTerm = 0
@@ -101,14 +101,14 @@ func updateTerm(s *RaftServer, newTerm int) {
 	s.stableInfo.Term = newTerm
 }
 
-func voteFor(s *RaftServer, candidateId int) {
-	s.stableInfo.LastVotedServerId = candidateId
+func voteFor(s *RaftServer, candidateID int) {
+	s.stableInfo.LastVotedServerID = candidateID
 }
 
 func resetVote(s *RaftServer) {
 	voteFor(s, 0)
 }
 
-func getFollwerNextIndex(s *RaftServer, followerId int) int {
-	return s.leaderState.NextIndex[followerId]
+func getFollwerNextIndex(s *RaftServer, followerID int) int {
+	return s.leaderState.NextIndex[followerID]
 }

@@ -12,7 +12,7 @@ func fireEvent() {
 }
 
 func TestTimerEventIsFired(t *testing.T) {
-	et := NewEventTimer(fireEvent, 1000)
+	et := newEventTimer(fireEvent, 1000)
 	et.Start()
 	time.Sleep(time.Millisecond * 1010)
 	println("et.TimeSinceLastFired()", et.TimeSinceLastFired())
@@ -20,10 +20,11 @@ func TestTimerEventIsFired(t *testing.T) {
 	time.Sleep(time.Millisecond * 1000)
 	println("et.TimeSinceLastFired()", et.TimeSinceLastFired())
 	assert.True(t, et.TimeSinceLastFired() < 50)
+	et.Stop()
 }
 
 func TestTimerStop(t *testing.T) {
-	et := NewEventTimer(fireEvent, 500)
+	et := newEventTimer(fireEvent, 500)
 	et.Start()
 	time.Sleep(time.Millisecond * 1010)
 	println("call et.Stop")
@@ -35,7 +36,7 @@ func TestTimerStop(t *testing.T) {
 }
 
 func TestTimerRestart(t *testing.T) {
-	et := NewEventTimer(fireEvent, 500)
+	et := newEventTimer(fireEvent, 500)
 	et.Start()
 	time.Sleep(time.Millisecond * 1010)
 	println("call et.Stop")
@@ -52,10 +53,11 @@ func TestTimerRestart(t *testing.T) {
 	time.Sleep(time.Millisecond * 1000)
 	println("et.TimeSinceLastFired()", et.TimeSinceLastFired())
 	assert.True(t, et.TimeSinceLastFired() < 50)
+	et.Stop()
 }
 
 func TestTimerReset(t *testing.T) {
-	et := NewEventTimer(fireEvent, 500)
+	et := newEventTimer(fireEvent, 500)
 	et.Start()
 	time.Sleep(time.Millisecond * 1010)
 	lastTime := et.LastFiredTime()

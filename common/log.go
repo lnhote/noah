@@ -2,6 +2,8 @@ package common
 
 import (
 	"github.com/v2pro/plz/countlog"
+	"go.uber.org/zap"
+
 	"os"
 
 	"github.com/v2pro/plz/countlog/output"
@@ -12,7 +14,15 @@ import (
 var (
 	DEBUG   = true
 	LOGFILE = "/tmp/test.log"
+	Sugar   *zap.SugaredLogger
 )
+
+func init() {
+	logger, _ := zap.NewDevelopmentConfig().Build() // or NewProduction, or NewDevelopment
+	Sugar = logger.Sugar()
+	// In most circumstances, use the SugaredLogger. It's 4-10x faster than most
+	// other structured logging packages and has a familiar, loosely-typed API.
+}
 
 func SetupLog() {
 	if DEBUG {
@@ -30,4 +40,5 @@ func SetupLog() {
 			Writer: logFile,
 		})
 	}
+
 }

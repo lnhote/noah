@@ -5,22 +5,26 @@ import (
 	"github.com/lnhote/noah/core/entity"
 )
 
+// LogEntry includes the log index, term and content
 type LogEntry struct {
 	Command *entity.Command
 	Index   int
 	Term    int
 }
 
+// LogRepo
 type LogRepo struct {
 	// logs: logindex => log struct, start from 1
 	logs      map[int]*LogEntry
 	lastIndex int
 }
 
+// NewLogRepo
 func NewLogRepo() *LogRepo {
 	return &LogRepo{logs: map[int]*LogEntry{}, lastIndex: 0}
 }
 
+// NewLogRepoWithLogs
 func NewLogRepoWithLogs(ents []*LogEntry) *LogRepo {
 	repo := &LogRepo{logs: map[int]*LogEntry{}, lastIndex: 0}
 	for _, ent := range ents {
@@ -29,22 +33,25 @@ func NewLogRepoWithLogs(ents []*LogEntry) *LogRepo {
 	return repo
 }
 
+// GetLastIndex
 func (l *LogRepo) GetLastIndex() int {
 	return l.lastIndex
 }
 
+// GetNextIndex
 func (l *LogRepo) GetNextIndex() int {
 	return l.GetLastIndex() + 1
 }
 
+// GetLastTerm
 func (l *LogRepo) GetLastTerm() int {
 	if log, err := l.GetLogEntry(l.lastIndex); err == nil {
 		return log.Term
-	} else {
-		return 0
 	}
+	return 0
 }
 
+// GetLogTerm
 func (l *LogRepo) GetLogTerm(index int) (int, error) {
 	entry, err := l.GetLogEntry(index)
 	if err != nil {
@@ -53,6 +60,7 @@ func (l *LogRepo) GetLogTerm(index int) (int, error) {
 	return entry.Term, nil
 }
 
+// GetLogList
 func (l *LogRepo) GetLogList(start int) []*LogEntry {
 	newLogs := []*LogEntry{}
 	for i := start; i <= l.GetLastIndex(); i++ {
@@ -61,25 +69,28 @@ func (l *LogRepo) GetLogList(start int) []*LogEntry {
 	return newLogs
 }
 
+// GetAllLogs
 func (l *LogRepo) GetAllLogs() []*LogEntry {
 	return l.GetLogList(0)
 }
 
-func (ll *LogRepo) GetLogEntry(index int) (*LogEntry, error) {
-	if entry, ok := ll.logs[index]; ok {
+// GetLogEntry
+func (l *LogRepo) GetLogEntry(index int) (*LogEntry, error) {
+	if entry, ok := l.logs[index]; ok {
 		return entry, nil
-	} else {
-		return nil, fmt.Errorf("InvalidLogIndex(%d)", index)
+	}
+	return nil, fmt.Errorf("InvalidLogIndex(%d)", index)
+}
+
+// SaveLogEntry
+func (l *LogRepo) SaveLogEntry(log *LogEntry) {
+	l.logs[log.Index] = log
+	if log.Index > l.lastIndex {
+		l.lastIndex = log.Index
 	}
 }
 
-func (ll *LogRepo) SaveLogEntry(log *LogEntry) {
-	ll.logs[log.Index] = log
-	if log.Index > ll.lastIndex {
-		ll.lastIndex = log.Index
-	}
-}
-
-func (ll *LogRepo) Delete(index int) {
-	delete(ll.logs, index)
+// Delete
+func (l *LogRepo) Delete(index int) {
+	delete(l.logs, index)
 }

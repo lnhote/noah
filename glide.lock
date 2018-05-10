@@ -1,5 +1,5 @@
-hash: 5b9584f1965a2093cc92163d9c2d94f631dd54dc816583d3d73c459ee0787a6c
-updated: 2018-04-05T00:40:40.4879+08:00
+hash: a466148e61dbcbf3f16b1b2184e870a2829f92c8ec345302470c3305ada999cb
+updated: 2018-05-10T23:33:22.846295+08:00
 imports:
 - name: github.com/cupcake/rdb
   version: 43ba34106c765f2111c0dc7b74cdf8ee437411e0
@@ -42,7 +42,7 @@ imports:
 - name: github.com/siddontang/rdb
   version: fc89ed2e418d27e3ea76e708e54276d2b44ae9cf
 - name: github.com/syndtr/goleveldb
-  version: 714f901b98fdb3aa954b4193d8cbd64a28d80cad
+  version: ae970a0732be3a1f5311da86118d37b9f4bd2a5a
   subpackages:
   - leveldb
   - leveldb/cache
@@ -78,8 +78,34 @@ imports:
   - countlog/output
   - countlog/output/compact
   - countlog/output/lumberjack
+- name: go.uber.org/zap
+  version: eeedf312bc6c57391d84767a4cd413f02a917974
+  subpackages:
+  - buffer
+  - internal/bufferpool
+  - internal/color
+  - internal/exit
+  - zapcore
 - name: golang.org/x/net
-  version: b68f30494add4df6bd8ef5e82803f308e7f7c59c
+  version: f73e4c9ed3b7ebdd5f699a16a880c2b1994e50dd
   subpackages:
   - context
-testImports: []
+- name: gopkg.in/yaml.v2
+  version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
+testImports:
+- name: github.com/davecgh/go-spew
+  version: 8991bc29aa16c548c550c7ff78260e27b9ab7c73
+  subpackages:
+  - spew
+- name: github.com/pmezard/go-difflib
+  version: 792786c7400a136282c1664665ae0a8db921c6c2
+  subpackages:
+  - difflib
+- name: github.com/stretchr/testify
+  version: c679ae2cc0cb27ec3293fea7e254e47386f05d69
+  subpackages:
+  - assert
+- name: go.uber.org/atomic
+  version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
+- name: go.uber.org/multierr
+  version: 3c4937480c32f4c13a875a1829af76c98ca3d40a

@@ -15,7 +15,7 @@ type voteCounter struct {
 	WG         *sync.WaitGroup
 }
 
-func NewVoteCounter(total int) *voteCounter {
+func newVoteCounter(total int) *voteCounter {
 	return &voteCounter{
 		Total:      total,
 		countMutex: &sync.Mutex{},

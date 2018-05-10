@@ -2,6 +2,7 @@ package server
 
 import "time"
 
+// TimerEvent is the callback function triggered by eventTimer
 type TimerEvent func()
 
 type eventTimer struct {
@@ -13,7 +14,7 @@ type eventTimer struct {
 	fireEvent     TimerEvent
 }
 
-func NewEventTimer(fireEvent TimerEvent, dur int) *eventTimer {
+func newEventTimer(fireEvent TimerEvent, dur int) *eventTimer {
 	et := &eventTimer{
 		DurationInMs:  dur,
 		fireEvent:     fireEvent,
@@ -28,7 +29,7 @@ func NewEventTimer(fireEvent TimerEvent, dur int) *eventTimer {
 
 // TimeSinceLastFired returns the time since last fire event in ms.
 func (t *eventTimer) TimeSinceLastFired() int64 {
-	return int64(time.Now().Sub(t.lastFiredTime)) / 1e6
+	return int64(time.Since(t.lastFiredTime)) / 1e6
 }
 
 func (t *eventTimer) LastFiredTime() string {

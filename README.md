@@ -1,3 +1,6 @@
+[![Go Report Card](https://goreportcard.com/badge/github.com/lnhote/noah)](https://goreportcard.com/report/github.com/lnhote/noah)
+[![codecov](https://codecov.io/gh/lnhote/noah/branch/master/graph/badge.svg)](https://codecov.io/gh/lnhote/noah)
+[![Build Status Travis](https://travis-ci.org/lnhote/noah.svg?branch=master)](https://travis-ci.org/lnhote/noah)
 [![License](http://img.shields.io/badge/license-mit-blue.svg?style=flat-square)](https://raw.githubusercontent.com/lnhote/noah/master/LICENSE)
 
 

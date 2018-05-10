@@ -3,8 +3,7 @@ package core
 type raftEvent int
 
 const (
-	InitEvent = iota
-	LeaderElectionStartEvent
+	LeaderElectionStartEvent = iota
 	LeaderElectionSuccessEvent
 	LeaderElectionFailEvent
 	DiscoverNewTermEvent

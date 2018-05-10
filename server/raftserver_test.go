@@ -7,8 +7,9 @@ import (
 	"github.com/lnhote/noah/core/raftrpc"
 	"github.com/lnhote/noah/core/store"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 	"log"
-	"net/rpc"
+	"net"
 	"testing"
 	"time"
 )
@@ -22,11 +23,11 @@ var (
 		core.NewServerInfo(5, core.RoleFollower, "127.0.0.1:8855")}
 
 	clustersNoLeader = []*core.ServerInfo{
-		core.NewServerInfo(1, core.RoleCandidate, "127.0.0.1:8851"),
-		core.NewServerInfo(2, core.RoleCandidate, "127.0.0.1:8852"),
-		core.NewServerInfo(3, core.RoleCandidate, "127.0.0.1:8853"),
-		core.NewServerInfo(4, core.RoleCandidate, "127.0.0.1:8854"),
-		core.NewServerInfo(5, core.RoleCandidate, "127.0.0.1:8855")}
+		core.NewServerInfo(1, core.RoleCandidate, "127.0.0.1:8861"),
+		core.NewServerInfo(2, core.RoleCandidate, "127.0.0.1:8862"),
+		core.NewServerInfo(3, core.RoleCandidate, "127.0.0.1:8863"),
+		core.NewServerInfo(4, core.RoleCandidate, "127.0.0.1:8864"),
+		core.NewServerInfo(5, core.RoleCandidate, "127.0.0.1:8865")}
 
 	leader = clusters[0]
 
@@ -62,11 +63,7 @@ func TestStartHeartbeatTimer(t *testing.T) {
 	s2Last := s2.leaderElectionTimer.LastFiredTime()
 	s3Last := s3.leaderElectionTimer.LastFiredTime()
 	s4Last := s4.leaderElectionTimer.LastFiredTime()
-	defer s1.Stop()
-	defer s2.Stop()
-	defer s3.Stop()
-	defer s4.Stop()
-	defer s5.Stop()
+
 	for i := 0; i < 10; i++ {
 		// make sure heart beat is triggered for leader
 		time.Sleep(time.Millisecond * 1000)
@@ -84,9 +81,15 @@ func TestStartHeartbeatTimer(t *testing.T) {
 		assert.True(t, s3.ServerConf.Info.Role == core.RoleFollower)
 		assert.True(t, s4.ServerConf.Info.Role == core.RoleFollower)
 	}
+	s1.Stop()
+	s2.Stop()
+	s3.Stop()
+	s4.Stop()
+	s5.Stop()
 }
 
 func TestVoteNoTimeout(t *testing.T) {
+	leader := clustersNoLeader[0]
 	s1 := NewRaftServerWithEnv(core.NewServerConf(clustersNoLeader[0], leader, clustersNoLeader), envNoTimer)
 	s2 := NewRaftServerWithEnv(core.NewServerConf(clustersNoLeader[1], leader, clustersNoLeader), envNoTimer)
 	s3 := NewRaftServerWithEnv(core.NewServerConf(clustersNoLeader[2], leader, clustersNoLeader), envNoTimer)
@@ -112,16 +115,24 @@ func TestVoteNoTimeout(t *testing.T) {
 }
 
 func TestStartAndStop(t *testing.T) {
+	clusters := []*core.ServerInfo{
+		core.NewServerInfo(1, core.RoleLeader, "127.0.0.1:8881"),
+		core.NewServerInfo(2, core.RoleFollower, "127.0.0.1:8882"),
+		core.NewServerInfo(3, core.RoleFollower, "127.0.0.1:8883"),
+		core.NewServerInfo(4, core.RoleFollower, "127.0.0.1:8884"),
+		core.NewServerInfo(5, core.RoleFollower, "127.0.0.1:8885")}
+	leader := clusters[0]
+
 	sLeader := NewRaftServerWithEnv(core.NewServerConf(leader, leader, clusters), env)
 	serverAddr := sLeader.ServerConf.Info.ServerAddr.String()
 	// before start
-	var _, err = rpc.Dial("tcp", serverAddr)
+	var _, err = net.DialTimeout("tcp", serverAddr, 50*time.Millisecond)
 	assert.NotNil(t, err)
 
 	// after start
 	go sLeader.Start()
 	waitAfterStart()
-	client, err := rpc.Dial("tcp", serverAddr)
+	client, err := net.DialTimeout("tcp", serverAddr, 50*time.Millisecond)
 	assert.Nil(t, err)
 	assert.NotNil(t, client)
 	client.Close()
@@ -129,11 +140,18 @@ func TestStartAndStop(t *testing.T) {
 	// stop
 	sLeader.Stop()
 	waitAfterStop()
-	_, err1 := rpc.Dial("tcp", serverAddr)
+	_, err1 := net.DialTimeout("tcp", serverAddr, 50*time.Millisecond)
 	assert.NotNil(t, err1)
 }
 
 func TestLeaderElectionAfterLeaderDead(t *testing.T) {
+	clusters := []*core.ServerInfo{
+		core.NewServerInfo(1, core.RoleLeader, "127.0.0.1:8871"),
+		core.NewServerInfo(2, core.RoleFollower, "127.0.0.1:8872"),
+		core.NewServerInfo(3, core.RoleFollower, "127.0.0.1:8873"),
+		core.NewServerInfo(4, core.RoleFollower, "127.0.0.1:8874"),
+		core.NewServerInfo(5, core.RoleFollower, "127.0.0.1:8875")}
+	leader := clusters[0]
 	s1 := NewRaftServerWithEnv(core.NewServerConf(clusters[1], leader, clusters), env)
 	s2 := NewRaftServerWithEnv(core.NewServerConf(clusters[2], leader, clusters), env)
 	s3 := NewRaftServerWithEnv(core.NewServerConf(clusters[3], leader, clusters), env)
@@ -184,6 +202,13 @@ func newTestVoteReq(term, lastLogIndex, lastLogTerm int) *raftrpc.RequestVoteReq
 }
 
 func TestVoteRejectCase(t *testing.T) {
+	clusters := []*core.ServerInfo{
+		core.NewServerInfo(1, core.RoleLeader, "127.0.0.1:8891"),
+		core.NewServerInfo(2, core.RoleFollower, "127.0.0.1:8892"),
+		core.NewServerInfo(3, core.RoleFollower, "127.0.0.1:8893"),
+		core.NewServerInfo(4, core.RoleFollower, "127.0.0.1:8894"),
+		core.NewServerInfo(5, core.RoleFollower, "127.0.0.1:8895")}
+	leader := clusters[0]
 	s1 := NewRaftServerWithEnv(core.NewServerConf(clusters[1], leader, clusters), env)
 	// add some logs first
 	pushTestLog(s1, 1, 1)
@@ -213,7 +238,7 @@ func TestVoteRejectCase(t *testing.T) {
 	assert.False(t, res.Accept)
 
 	// case 5: already voted this
-	voteFor(s1, clusters[2].ServerId)
+	voteFor(s1, clusters[2].ServerID)
 	assert.Nil(t, s1.OnReceiveRequestVoteRPC(newTestVoteReq(5, 3, 4), &res))
 	assert.True(t, res.Accept)
 
@@ -224,6 +249,13 @@ func TestVoteRejectCase(t *testing.T) {
 }
 
 func TestRaftServer_AppendLog(t *testing.T) {
+	clusters := []*core.ServerInfo{
+		core.NewServerInfo(1, core.RoleLeader, "127.0.0.1:9001"),
+		core.NewServerInfo(2, core.RoleFollower, "127.0.0.1:9002"),
+		core.NewServerInfo(3, core.RoleFollower, "127.0.0.1:9003"),
+		core.NewServerInfo(4, core.RoleFollower, "127.0.0.1:9004"),
+		core.NewServerInfo(5, core.RoleFollower, "127.0.0.1:9005")}
+	leader := clusters[0]
 	s1Leader := NewRaftServerWithEnv(core.NewServerConf(clusters[0], leader, clusters), envNoTimer)
 	s2 := NewRaftServerWithEnv(core.NewServerConf(clusters[1], leader, clusters), envNoTimer)
 	s3 := NewRaftServerWithEnv(core.NewServerConf(clusters[2], leader, clusters), envNoTimer)
@@ -268,4 +300,17 @@ func ExampleNewRaftServer() {
 	raftNode := NewRaftServerWithEnv(serverConfig, envExample)
 	raftNode.OpenRepo("test/ExampleNewRaftServer", store.DefaultPageSize, store.SegmentSizeBytes)
 	raftNode.Start()
+}
+
+func TestLog(t *testing.T) {
+	logger, _ := zap.NewDevelopmentConfig().Build() // or NewProduction, or NewDevelopment
+	sugar := logger.Sugar()
+	defer logger.Sync()
+
+	const url = "http://example.com"
+
+	// In most circumstances, use the SugaredLogger. It's 4-10x faster than most
+	// other structured logging packages and has a familiar, loosely-typed API.
+	sugar.Infof("Failed to fetch URL: %s", url)
+
 }

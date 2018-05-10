@@ -1,4 +1,5 @@
 .idea/
 vendor
-/core/store/tmp
-/core/store/test
+core/store/test
+output
+test

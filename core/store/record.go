@@ -5,9 +5,14 @@ import (
 	"hash"
 	"io/ioutil"
 	"log"
+	"sync"
 
 	"github.com/lnhote/noah/core"
 	"github.com/lnhote/noah/core/errmsg"
+)
+
+var (
+	crcmu sync.Mutex
 )
 
 //Record frame format:
@@ -109,8 +114,6 @@ func (r *Record) FrameSize() int {
 }
 
 func NewRecord(bytes []byte, dtype dataType, ftype frameType, crc hash.Hash32) (*Record, error) {
-	rec := &Record{Data: bytes, Size: uint16(len(bytes)), DType: dtype, FType: ftype}
-	crc.Reset()
 	var n, err = crc.Write(bytes)
 	if err != nil {
 		return nil, err
@@ -118,8 +121,7 @@ func NewRecord(bytes []byte, dtype dataType, ftype frameType, crc hash.Hash32) (
 	if n != len(bytes) {
 		return nil, errmsg.CRCShortWrite
 	}
-	rec.Crc = crc.Sum32()
-	return rec, nil
+	return &Record{Data: bytes, Size: uint16(len(bytes)), DType: dtype, FType: ftype, Crc: crc.Sum32()}, nil
 }
 
 func RestoreLogEntriesAndState(filename string, pageSize int) (*core.PersistentState, error) {
@@ -198,7 +200,7 @@ func ReadFramesFromBytes(bytes []byte, pageSize int) ([]*Record, error) {
 	records := []*Record{}
 	totalPage := len(bytes) / pageSize
 	if len(bytes)%pageSize != 0 {
-		totalPage += 1
+		totalPage++
 	}
 	for page := 0; page < totalPage; page++ {
 		offset := page * pageSize

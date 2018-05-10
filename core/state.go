@@ -10,7 +10,7 @@ type PersistentState struct {
 	Term int `json:"term"`
 
 	// candidateId that received vote in current term (or 0 if none)
-	LastVotedServerId int `json:"last_voted_server_id"`
+	LastVotedServerID int `json:"last_voted_server_id"`
 
 	// log entries; each entry contains command for state machine,
 	// and term when entry was received by leader (first index is 1)
@@ -38,13 +38,14 @@ type VolatileLeaderState struct {
 	// (initialized to 0, increases monotonically)
 	MatchIndex map[int]int
 
-	LastRpcTime map[int]time.Time
+	LastRPCTime map[int]time.Time
 }
 
-func NewPersistentState(term int, lastVotedServerId int, ents []*LogEntry) *PersistentState {
+// NewPersistentState return a new PersistentState
+func NewPersistentState(term int, lastVotedServerID int, ents []*LogEntry) *PersistentState {
 	logs := &LogRepo{logs: map[int]*LogEntry{}, lastIndex: 0}
 	for _, ent := range ents {
 		logs.SaveLogEntry(ent)
 	}
-	return &PersistentState{Term: term, LastVotedServerId: lastVotedServerId, Logs: logs}
+	return &PersistentState{Term: term, LastVotedServerID: lastVotedServerID, Logs: logs}
 }

@@ -24,6 +24,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	defer common.Sugar.Sync()
 	log.Print("Working Directory: ", wd)
 	configFilename := filepath.Join(wd, "config/config.yml")
 	log.Print("Read Config from: ", configFilename)

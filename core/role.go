@@ -12,10 +12,6 @@ func (r raftRole) String() string {
 	return [...]string{"Follower", "Candidate", "Leader"}[r]
 }
 
-type raftRoleType interface {
-	onReceiveRaftEvent(msg raftEvent)
-}
-
 func (r *raftRole) HandleMsg(msg raftEvent) {
 	switch *r {
 	case RoleFollower:
