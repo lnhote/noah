@@ -6,6 +6,15 @@ go:
   - 1.10.x
 
 before_install:
+  - sudo apt-get install libgflags-dev
+  - sudo apt-get install libsnappy-dev
+  - sudo apt-get install zlib1g-dev
+  - sudo apt-get install libbz2-dev
+  - sudo apt-get install liblz4-dev
+  - sudo apt-get install libzstd-dev
+  - git clone git@github.com:facebook/rocksdb.git
+  - cd rocksdb
+  - make static_lib
   - curl https://glide.sh/get | sh
   - glide install
 
