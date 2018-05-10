@@ -1,12 +1,13 @@
 language: go
 
+go_import_path: github.com/lnhote/noah
+
 go:
   - 1.10.x
-  - 1.x
 
 before_install:
-  - go get -v github.com/Masterminds/glide
-  - glide i
+  - curl https://glide.sh/get | sh
+  - glide install
 
 script:
   - go test -tags="rocksdb" ./...
