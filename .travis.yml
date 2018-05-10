@@ -20,6 +20,7 @@ before_install:
   - cd rocksdb
   - make static_lib
   - curl https://glide.sh/get | sh
+  - cd $HOME/gopath/src/github.com/lnhote/noah
   - glide install
 
 script:
@@ -27,3 +28,7 @@ script:
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
+
+notifications:
+  email:
+    - lnhote@gmail.com
