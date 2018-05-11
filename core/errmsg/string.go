@@ -18,5 +18,6 @@ const (
 	EncodingError       = Errmsg("EncodingError")
 	DecodeError         = Errmsg("DecodeError")
 	DataTooShort        = Errmsg("DataTooShort")
+	DBConnectErr        = Errmsg("DBConnectErr")
 	EOF                 = Errmsg("EOF")
 )

@@ -13,4 +13,5 @@ type Env struct {
 	HeartBeatDurationInMs      int
 	LeaderElectionDurationInMs int
 	RandomRangeInMs            int
+	DBDir                      string
 }

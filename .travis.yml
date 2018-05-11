@@ -7,7 +7,7 @@ go:
 
 addons:
    apt:
-      packages: ['zlib1g-dev', 'libbz2-dev', 'libsnappy-dev', 'curl', 'libgflags-dev']
+      packages: ['zlib1g-dev', 'libbz2-dev', 'liblz4-dev', 'libsnappy-dev', 'curl', 'libgflags-dev']
 
 before_install:
 #  - sudo apt-get install libgflags-dev

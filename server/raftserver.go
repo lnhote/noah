@@ -85,6 +85,7 @@ type RaftServer struct {
 	stopSignal chan int
 
 	clientPool *raftrpc.ClientPool
+	dbStore    kvstore.KVStore
 }
 
 // NewRaftServer returns a raft server with default env
@@ -95,6 +96,7 @@ func NewRaftServer(conf *core.ServerConfig) *RaftServer {
 // NewRaftServerWithEnv returns a new raft server with env
 func NewRaftServerWithEnv(conf *core.ServerConfig, env *core.Env) *RaftServer {
 	newServer := &RaftServer{}
+	newServer.dbStore = kvstore.NewRocksDB(env.DBDir)
 	newServer.ServerConf = conf
 	newServer.stableInfo = &core.PersistentState{Term: 0, LastVotedServerID: 0, Logs: core.NewLogRepo()}
 	newServer.volatileInfo = &core.VolatileState{}
@@ -448,9 +450,11 @@ func (s *RaftServer) Get(cmd *entity.Command, resp *raftrpc.ClientResponse) erro
 		resp.Errcode = errno.NotLeader
 		return nil
 	}
+	s.dbStore.Connect()
+	defer s.dbStore.Close()
 	switch cmd.CommandType {
 	case entity.CmdGet:
-		val, err := kvstore.DBGet(cmd.Key)
+		val, err := s.dbStore.Get(cmd.Key)
 		if err != nil {
 			countlog.Error("DBGet failed", "key", cmd.Key, "error", err)
 			resp.Errcode = errno.InternalServerError
@@ -536,7 +540,7 @@ func (s *RaftServer) ReplicateLog(cmd *entity.Command) ([]byte, error) {
 		// replicate success
 		s.volatileInfo.CommitIndex = s.stableInfo.Logs.GetLastIndex()
 		s.applyLogs()
-		return kvstore.DBGet(cmd.Key)
+		return s.dbStore.Get(cmd.Key)
 	}
 	return nil, errmsg.ReplicateLogFail
 }
@@ -594,7 +598,7 @@ func (s *RaftServer) applyLogs() {
 	for i := s.volatileInfo.LastApplied + 1; i <= s.volatileInfo.CommitIndex; i++ {
 		countlog.Info(fmt.Sprintf("apply log %d", i))
 		if logToApply, err := s.stableInfo.Logs.GetLogEntry(i); err == nil {
-			if dbErr := kvstore.DBSet(logToApply.Command.Key, logToApply.Command.Value); dbErr == nil {
+			if dbErr := s.dbStore.Set(logToApply.Command.Key, logToApply.Command.Value); dbErr == nil {
 				countlog.Info(fmt.Sprintf("apply log %d [%s] success", i, logToApply.Command.String()))
 				s.volatileInfo.LastApplied++
 			} else {
