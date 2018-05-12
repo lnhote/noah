@@ -32,6 +32,7 @@ before_install:
 
 script:
   - go test -tags="rocksdb" ./...
+#  - CGO_CFLAGS="-I/usr/include/rocksdb" CGO_LDFLAGS="-L/usr/include/rocksdb -lrocksdb -lstdc++ -lm -lz -lbz2 -lsnappy -llz4 -lzstd" go test -tags="rocksdb" ./...
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
