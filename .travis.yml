@@ -16,7 +16,7 @@ before_install:
   - sudo apt-get install zlib1g-dev
   - sudo apt-get install libbz2-dev
   - sudo apt-get install liblz4-dev
-  - sudo apt-get install libzstd-dev
+#  - sudo apt-get install libzstd-dev
   - sudo apt-get install gcc g++ libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev -qq
   - wget https://launchpad.net/ubuntu/+archive/primary/+files/libgflags2_2.0-1.1ubuntu1_amd64.deb
   - sudo dpkg -i libgflags2_2.0-1.1ubuntu1_amd64.deb
