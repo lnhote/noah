@@ -1,5 +1,7 @@
-.idea/
+.idea
+.vscode
 vendor
+
 core/store/test
 output
 test
