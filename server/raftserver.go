@@ -6,6 +6,7 @@ import (
 	"net/rpc"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
@@ -96,7 +97,8 @@ func NewRaftServer(conf *core.ServerConfig) *RaftServer {
 // NewRaftServerWithEnv returns a new raft server with env
 func NewRaftServerWithEnv(conf *core.ServerConfig, env *core.Env) *RaftServer {
 	newServer := &RaftServer{}
-	newServer.dbStore = kvstore.NewRocksDB(env.DBDir)
+	fullFilename := filepath.Join(env.DBDir, fmt.Sprintf("server_%d.dat", conf.Info.ServerID))
+	newServer.dbStore = kvstore.NewRocksDB(fullFilename)
 	newServer.ServerConf = conf
 	newServer.stableInfo = &core.PersistentState{Term: 0, LastVotedServerID: 0, Logs: core.NewLogRepo()}
 	newServer.volatileInfo = &core.VolatileState{}

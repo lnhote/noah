@@ -19,7 +19,7 @@ func init() {
 }
 
 func main() {
-	envExample := &core.Env{HeartBeatDurationInMs: 1000, LeaderElectionDurationInMs: 5000, RandomRangeInMs: 3000}
+	envExample := &core.Env{HeartBeatDurationInMs: 1000, LeaderElectionDurationInMs: 5000, RandomRangeInMs: 3000, DBDir: "/tmp/noah/data"}
 	wd, err := os.Getwd()
 	if err != nil {
 		panic(err)

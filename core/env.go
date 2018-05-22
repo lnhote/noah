@@ -6,6 +6,7 @@ var (
 		HeartBeatDurationInMs:      5,
 		// (0 - 50 ms)
 		RandomRangeInMs: 50,
+		DBDir:           "/tmp/noah/data",
 	}
 )
 

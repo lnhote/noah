@@ -1,6 +1,11 @@
 package server
 
 import (
+	"log"
+	"net"
+	"testing"
+	"time"
+
 	"github.com/lnhote/noah/common"
 	"github.com/lnhote/noah/core"
 	"github.com/lnhote/noah/core/entity"
@@ -8,10 +13,6 @@ import (
 	"github.com/lnhote/noah/core/store"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
-	"log"
-	"net"
-	"testing"
-	"time"
 )
 
 var (
@@ -31,8 +32,8 @@ var (
 
 	leader = clusters[0]
 
-	env        = &core.Env{HeartBeatDurationInMs: 1000, LeaderElectionDurationInMs: 5000, RandomRangeInMs: 3000}
-	envNoTimer = &core.Env{HeartBeatDurationInMs: 0, LeaderElectionDurationInMs: 0, RandomRangeInMs: 50}
+	env        = &core.Env{HeartBeatDurationInMs: 1000, LeaderElectionDurationInMs: 5000, RandomRangeInMs: 3000, DBDir: "/tmp/noah/data"}
+	envNoTimer = &core.Env{HeartBeatDurationInMs: 0, LeaderElectionDurationInMs: 0, RandomRangeInMs: 50, DBDir: "/tmp/noah/data"}
 )
 
 func init() {

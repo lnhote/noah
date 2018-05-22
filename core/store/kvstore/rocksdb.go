@@ -1,8 +1,6 @@
 package kvstore
 
 import (
-	"fmt"
-
 	"github.com/lnhote/noah/core/errmsg"
 	lediscfg "github.com/siddontang/ledisdb/config"
 	"github.com/siddontang/ledisdb/ledis"
@@ -49,16 +47,18 @@ func (r *RocksDBStore) Connect() error {
 }
 
 func (r *RocksDBStore) Get(key string) ([]byte, error) {
-	var val, err = r.db.Get([]byte(key))
-	if err != nil {
-		return nil, fmt.Errorf("DB_GET fail: %s", err.Error())
-	}
+	var val []byte = []byte("test")
+	//var err
+	//var val, err = r.db.Get([]byte(key))
+	//if err != nil {
+	//	return nil, fmt.Errorf("DB_GET fail: %s", err.Error())
+	//}
 	return val, nil
 }
 
 func (r *RocksDBStore) Set(key string, val []byte) error {
-	if err := r.db.Set([]byte(key), val); err != nil {
-		return fmt.Errorf("DB_SET fail: %s", err.Error())
-	}
+	//if err := r.db.Set([]byte(key), val); err != nil {
+	//	return fmt.Errorf("DB_SET fail: %s", err.Error())
+	//}
 	return nil
 }
