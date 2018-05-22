@@ -2,6 +2,6 @@
 .vscode
 vendor
 
+test
 core/store/test
 output
-test

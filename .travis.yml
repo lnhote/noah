@@ -30,7 +30,7 @@ before_install:
   - git clone https://github.com/facebook/rocksdb.git /tmp/rocksdb
   - pushd /tmp/rocksdb
   - make clean
-  - CFLAGS="-Wall" make shared_lib
+  - CXXFLAGS="-Wno-error=unused-parameter" make shared_lib
   - sudo cp --preserve=links ./librocksdb.* /usr/lib/
   - sudo cp -r ./include/rocksdb/ /usr/include/
   - popd
