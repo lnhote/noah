@@ -12,15 +12,13 @@ addons:
 before_install:
   - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
   - sudo apt-get update -qq
-  - sudo apt-get install gcc-6 g++-6 libsnappy-dev zlib1g-dev libbz2-dev -qq
   - export CXX="g++-6" CC="gcc-6"
-  - sudo apt-get install libgflags-dev
-  - sudo apt-get install libsnappy-dev
-  - sudo apt-get install zlib1g-dev
-  - sudo apt-get install libbz2-dev
-  - sudo apt-get install liblz4-dev
+#  - sudo apt-get install libgflags-dev
+#  - sudo apt-get install libsnappy-dev
+#  - sudo apt-get install zlib1g-dev
+#  - sudo apt-get install libbz2-dev
+#  - sudo apt-get install liblz4-dev
 #  - sudo apt-get install libzstd-dev
-  - sudo apt-get install gcc g++ libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev -qq
   - wget https://launchpad.net/ubuntu/+archive/primary/+files/libgflags2_2.0-1.1ubuntu1_amd64.deb
   - sudo dpkg -i libgflags2_2.0-1.1ubuntu1_amd64.deb
   - wget https://launchpad.net/ubuntu/+archive/primary/+files/libgflags-dev_2.0-1.1ubuntu1_amd64.deb
@@ -38,7 +36,7 @@ before_install:
   - glide install
 
 script:
-  - go test -tags="rocksdb" ./...
+  - go test -tags="rocksdb" -coverprofile=coverage.txt -covermode=atomic ./...
 #  - CGO_CFLAGS="-I/usr/include/rocksdb" CGO_LDFLAGS="-L/usr/include/rocksdb -lrocksdb -lstdc++ -lm -lz -lbz2 -lsnappy -llz4 -lzstd" go test -tags="rocksdb" ./...
 
 after_success:

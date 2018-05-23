@@ -97,7 +97,7 @@ func NewRaftServer(conf *core.ServerConfig) *RaftServer {
 // NewRaftServerWithEnv returns a new raft server with env
 func NewRaftServerWithEnv(conf *core.ServerConfig, env *core.Env) *RaftServer {
 	newServer := &RaftServer{}
-	fullFilename := filepath.Join(env.DBDir, fmt.Sprintf("server_%d.dat", conf.Info.ServerID))
+	fullFilename := filepath.Join(env.DBDir, fmt.Sprintf("server_%d", conf.Info.ServerID))
 	newServer.dbStore = kvstore.NewRocksDB(fullFilename)
 	newServer.ServerConf = conf
 	newServer.stableInfo = &core.PersistentState{Term: 0, LastVotedServerID: 0, Logs: core.NewLogRepo()}
@@ -145,6 +145,7 @@ func (s *RaftServer) String() string {
 func (s *RaftServer) Start() {
 	s.leaderElectionTimer.Start()
 	s.leaderHeartBeatTimer.Start()
+	s.dbStore.Connect()
 	s.startServe()
 }
 
@@ -153,6 +154,7 @@ func (s *RaftServer) Stop() {
 	s.stopSignal <- 1
 	s.leaderElectionTimer.Stop()
 	s.leaderHeartBeatTimer.Stop()
+	s.dbStore.Close()
 }
 
 // startServe starts listening to port and handles requests

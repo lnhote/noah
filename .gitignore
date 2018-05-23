@@ -6,3 +6,4 @@ vendor
 core/store/test
 
 output
+/coverage.txt

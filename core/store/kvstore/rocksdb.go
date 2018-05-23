@@ -1,7 +1,8 @@
 package kvstore
 
 import (
-	"github.com/lnhote/noah/core/errmsg"
+	"fmt"
+
 	lediscfg "github.com/siddontang/ledisdb/config"
 	"github.com/siddontang/ledisdb/ledis"
 	"github.com/siddontang/ledisdb/store/rocksdb"
@@ -18,28 +19,33 @@ type RocksDBStore struct {
 	db        *ledis.DB
 	ledisInst *ledis.Ledis
 	dataDir   string
+	cfg       *lediscfg.Config
 }
 
 func NewRocksDB(dataDir string) *RocksDBStore {
-	return &RocksDBStore{db: nil, ledisInst: nil, dataDir: dataDir}
+	cfg := lediscfg.NewConfigDefault()
+	cfg.DBName = rocksdb.DBName
+	cfg.DataDir = dataDir
+	return &RocksDBStore{db: nil, ledisInst: nil, dataDir: dataDir, cfg: cfg}
 }
 
 func (r *RocksDBStore) Close() error {
 	if r.ledisInst != nil {
 		r.ledisInst.Close()
+		r.ledisInst = nil
 	}
-	return errmsg.DataTooShort
+	return nil
 }
 
 func (r *RocksDBStore) Connect() error {
-	cfg := lediscfg.NewConfigDefault()
-	cfg.DBName = rocksdb.DBName
-	cfg.DataDir = r.dataDir
-	ledisInst, err := ledis.Open(cfg)
-	if err != nil {
-		panic(err.Error())
+	var err error
+	if r.ledisInst == nil {
+		r.ledisInst, err = ledis.Open(r.cfg)
+		if err != nil {
+			panic(err.Error())
+		}
 	}
-	r.db, err = ledisInst.Select(0)
+	r.db, err = r.ledisInst.Select(0)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -47,18 +53,22 @@ func (r *RocksDBStore) Connect() error {
 }
 
 func (r *RocksDBStore) Get(key string) ([]byte, error) {
-	var val []byte = []byte("test")
-	//var err
-	//var val, err = r.db.Get([]byte(key))
-	//if err != nil {
-	//	return nil, fmt.Errorf("DB_GET fail: %s", err.Error())
-	//}
+	if r.db == nil {
+		return nil, fmt.Errorf("RocksDBStore not connected")
+	}
+	var val, err = r.db.Get([]byte(key))
+	if err != nil {
+		return nil, fmt.Errorf("DB_GET fail: %s", err.Error())
+	}
 	return val, nil
 }
 
 func (r *RocksDBStore) Set(key string, val []byte) error {
-	//if err := r.db.Set([]byte(key), val); err != nil {
-	//	return fmt.Errorf("DB_SET fail: %s", err.Error())
-	//}
+	if r.db == nil {
+		return fmt.Errorf("RocksDBStore not connected")
+	}
+	if err := r.db.Set([]byte(key), val); err != nil {
+		return fmt.Errorf("DB_SET fail: %s", err.Error())
+	}
 	return nil
 }

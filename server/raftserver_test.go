@@ -257,7 +257,7 @@ func TestRaftServer_AppendLog(t *testing.T) {
 		core.NewServerInfo(4, core.RoleFollower, "127.0.0.1:9004"),
 		core.NewServerInfo(5, core.RoleFollower, "127.0.0.1:9005")}
 	leader := clusters[0]
-	s1Leader := NewRaftServerWithEnv(core.NewServerConf(clusters[0], leader, clusters), envNoTimer)
+	s1Leader := NewRaftServerWithEnv(core.NewServerConf(leader, leader, clusters), envNoTimer)
 	s2 := NewRaftServerWithEnv(core.NewServerConf(clusters[1], leader, clusters), envNoTimer)
 	s3 := NewRaftServerWithEnv(core.NewServerConf(clusters[2], leader, clusters), envNoTimer)
 	s4 := NewRaftServerWithEnv(core.NewServerConf(clusters[3], leader, clusters), envNoTimer)
@@ -267,7 +267,7 @@ func TestRaftServer_AppendLog(t *testing.T) {
 	go s3.Start()
 	go s4.Start()
 	go s5.Start()
-	waitAfterStart()
+	time.Sleep(time.Millisecond * 1000)
 
 	val, err := s1Leader.ReplicateLog(newTestCmd())
 	assert.Nil(t, err)
