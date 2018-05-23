@@ -2,7 +2,7 @@
 .vscode
 vendor
 
-test
+!*/TestReadRepo/**
 core/store/test
-!core/store/test/TestReadRepo/
+
 output
